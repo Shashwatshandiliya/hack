@@ -199,13 +199,36 @@ export default function EntitlementUserView({
 
   return (
     <div className={styles.container}>
-      <Typography fontFamily="Poppins" sx={{ fontWeight: 500, fontSize: 20, color: "white", mb: 2 }}>
+      <Typography fontFamily="Poppins" sx={{ fontWeight: 600, fontSize: 24, color: "white", mb: 3 }}>
         Entitlement Users
       </Typography>
 
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
-        <Grid container spacing={1} alignItems="center" sx={{ flex: 1 }}>
-          <Grid item xs={12} sm={4} md={3}>
+      <Grid container spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={4}>
+          <Autocomplete
+            size="small"
+            options={appList}
+            value={selectedApp}
+            onChange={(event, newValue) => {
+              if (newValue) setSelectedApp(newValue);
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Select Application"
+                InputProps={{
+                  ...params.InputProps,
+                  sx: { backgroundColor: "#1E252D", color: "white" },
+                }}
+                InputLabelProps={{ sx: { color: "#CBCBCB" } }}
+                fullWidth
+              />
+            )}
+          />
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={5}>
+          <Box sx={{ display: "flex", gap: 1 }}>
             <TextField
               size="small"
               placeholder={activeTab === "1" ? "Search by owner/name" : "Search entitlement name"}
@@ -221,58 +244,36 @@ export default function EntitlementUserView({
               }}
               fullWidth
             />
-          </Grid>
-          <Grid item xs={6} sm={2} md={1.5}>
             <Button
               variant="contained"
-              fullWidth
               onClick={handleSearch}
               sx={{
                 background: "linear-gradient(90deg, #007BFF 0%, #3399FF 100%)",
                 color: "white",
                 fontWeight: 600,
                 borderRadius: 2,
-                height: 36,
+                px: 3,
                 textTransform: "none",
               }}
             >
               Search
             </Button>
-          </Grid>
+          </Box>
         </Grid>
 
-        <Autocomplete
-          size="small"
-          sx={{ width: 250 }}
-          options={appList}
-          value={selectedApp}
-          onChange={(event, newValue) => {
-            if (newValue) setSelectedApp(newValue);
-          }}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              label="Select App"
-              InputProps={{
-                ...params.InputProps,
-                sx: { backgroundColor: "#1E252D", color: "white" },
-              }}
-              InputLabelProps={{ sx: { color: "#CBCBCB" } }}
-            />
-          )}
-        />
-
         {activeTab === "1" && (
-          <Button
-            variant="contained"
-            startIcon={<AddCircleIcon />}
-            onClick={() => onNavigate?.("create-account")}
-            sx={{ height: 36, fontWeight: 600, fontSize: 12 }}
-          >
-            Create Account
-          </Button>
+          <Grid item xs={12} sm={6} md={3} textAlign="right">
+            <Button
+              variant="contained"
+              startIcon={<AddCircleIcon />}
+              onClick={() => onNavigate?.("create-account")}
+              sx={{ height: 40, fontWeight: 600, fontSize: 14 }}
+            >
+              Create Account
+            </Button>
+          </Grid>
         )}
-      </Box>
+      </Grid>
 
       <Tabs
         activeKey={activeTab}
