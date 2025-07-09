@@ -200,10 +200,7 @@ export default function EntitlementUserView({
   return (
     <div className={styles.container}>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-        <Typography
-          fontFamily="Poppins"
-          sx={{ fontWeight: 500, fontSize: 20, color: "white" }}
-        >
+        <Typography fontFamily="Poppins" sx={{ fontWeight: 500, fontSize: 20, color: "white" }}>
           Entitlement Users
         </Typography>
         <Autocomplete
@@ -246,31 +243,37 @@ export default function EntitlementUserView({
             }}
           />
         </Grid>
-        <Grid item xs={6} sm={3} md={2} lg={1.5}>
+        <Grid item xs={6} sm={3} md={2} lg={2}>
           <Button
-            variant="outlined"
+            variant="contained"
             size="small"
             fullWidth
             onClick={handleSearch}
-            sx={{ color: "white", borderColor: "white", height: 36 }}
+            sx={{
+              color: "white",
+              backgroundColor: "#007BFF",
+              fontWeight: 600,
+              textTransform: "none",
+              borderRadius: 1,
+              height: 36,
+              '&:hover': { backgroundColor: "#005FCC" }
+            }}
           >
             Search
           </Button>
         </Grid>
-        <Grid item xs={6} sm={3} md={6.5} lg={7.5} textAlign="right">
-          <Button
-            variant="contained"
-            startIcon={<AddCircleIcon />}
-            onClick={() =>
-              onNavigate?.(
-                activeTab === "1" ? "create-account" : "create-entitlement-user"
-              )
-            }
-            sx={{ height: 36, fontWeight: 600, fontSize: 12 }}
-          >
-            {activeTab === "1" ? "Create Account" : "Create Entitlement"}
-          </Button>
-        </Grid>
+        {activeTab === "1" && (
+          <Grid item xs={12} sm={3} md={6} lg={7} textAlign="right">
+            <Button
+              variant="contained"
+              startIcon={<AddCircleIcon />}
+              onClick={() => onNavigate?.("create-account")}
+              sx={{ height: 36, fontWeight: 600, fontSize: 12 }}
+            >
+              Create Account
+            </Button>
+          </Grid>
+        )}
       </Grid>
 
       <Tabs
@@ -325,7 +328,7 @@ export default function EntitlementUserView({
                   <Typography sx={{ color: "white", mb: 1 }}>{drawerData.accountOwner}</Typography>
                   <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Roles</Typography>
                   <Typography sx={{ color: "white", mb: 1 }}>
-                    {drawerData.accessRoles.map((r:any) => r.roleName).join(", ")}
+                    {drawerData.accessRoles.map((r: any) => r.roleName).join(", ")}
                   </Typography>
                   <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Status</Typography>
                   <Typography sx={{ color: "white", mb: 1 }}>{drawerData.accountStatus}</Typography>
