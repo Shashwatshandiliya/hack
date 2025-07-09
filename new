@@ -199,10 +199,47 @@ export default function EntitlementUserView({
 
   return (
     <div className={styles.container}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 2 }}>
         <Typography fontFamily="Poppins" sx={{ fontWeight: 500, fontSize: 20, color: "white" }}>
           Entitlement Users
         </Typography>
+        <Grid container spacing={1} alignItems="center" sx={{ flex: 1, maxWidth: 600 }}>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              size="small"
+              fullWidth
+              placeholder={activeTab === "1" ? "Search by owner/name" : "Search entitlement name"}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: "#CBCBCB" }} />
+                  </InputAdornment>
+                ),
+                sx: { backgroundColor: "#1E252D", color: "white", borderRadius: 2 },
+              }}
+            />
+          </Grid>
+          <Grid item xs={6} sm={3}>
+            <Button
+              variant="contained"
+              size="small"
+              fullWidth
+              onClick={handleSearch}
+              sx={{
+                background: "linear-gradient(90deg, #007BFF 0%, #3399FF 100%)",
+                color: "white",
+                fontWeight: 600,
+                borderRadius: 2,
+                height: 36,
+                textTransform: "none"
+              }}
+            >
+              Search
+            </Button>
+          </Grid>
+        </Grid>
         <Autocomplete
           size="small"
           sx={{ width: 250 }}
@@ -223,58 +260,17 @@ export default function EntitlementUserView({
             />
           )}
         />
-      </Box>
-
-      <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
-        <Grid item xs={12} sm={6} md={4} lg={3}>
-          <TextField
-            size="small"
-            fullWidth
-            placeholder={activeTab === "1" ? "Search by owner/name" : "Search entitlement name"}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: "#CBCBCB" }} />
-                </InputAdornment>
-              ),
-              sx: { backgroundColor: "#1E252D", color: "white", borderRadius: 1 },
-            }}
-          />
-        </Grid>
-        <Grid item xs={6} sm={3} md={2} lg={2}>
+        {activeTab === "1" && (
           <Button
             variant="contained"
-            size="small"
-            fullWidth
-            onClick={handleSearch}
-            sx={{
-              color: "white",
-              backgroundColor: "#007BFF",
-              fontWeight: 600,
-              textTransform: "none",
-              borderRadius: 1,
-              height: 36,
-              '&:hover': { backgroundColor: "#005FCC" }
-            }}
+            startIcon={<AddCircleIcon />}
+            onClick={() => onNavigate?.("create-account")}
+            sx={{ height: 36, fontWeight: 600, fontSize: 12 }}
           >
-            Search
+            Create Account
           </Button>
-        </Grid>
-        {activeTab === "1" && (
-          <Grid item xs={12} sm={3} md={6} lg={7} textAlign="right">
-            <Button
-              variant="contained"
-              startIcon={<AddCircleIcon />}
-              onClick={() => onNavigate?.("create-account")}
-              sx={{ height: 36, fontWeight: 600, fontSize: 12 }}
-            >
-              Create Account
-            </Button>
-          </Grid>
         )}
-      </Grid>
+      </Box>
 
       <Tabs
         activeKey={activeTab}
