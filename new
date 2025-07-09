@@ -1,0 +1,329 @@
+import React, { useState } from 'react';
+export default function PaymentForm({ scenario, addLog, setLoading }) {
+  const [account, setAccount] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const createRipple = e => {
+    const btn = e.currentTarget;
+    const circle = document.createElement('span');
+    const d = Math.max(btn.clientWidth, btn.clientHeight);
+    const r = d / 2;
+    circle.style.width = circle.style.height = `${d}px`;
+    circle.style.left = `${e.clientX - btn.offsetLeft - r}px`;
+    circle.style.top = `${e.clientY - btn.offsetTop - r}px`;
+    circle.classList.add('ripple');
+    btn.appendChild(circle);
+    setTimeout(() => circle.remove(), 600);
+  };
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    setLoading(true);
+    createRipple(e);
+    setTimeout(() => {
+      const txn = { id:Date.now(), scenario, account, amount, timestamp:new Date().toLocaleString() };
+      let error;
+      switch(scenario){ case 'A': error='Account is closed or frozen'; break;
+        case 'B': error='Payment received after cutoff period'; break;
+        case 'C': error='FX pricing not available, booking failed'; break;
+        default: error='Unknown error'; }
+      addLog({ ...txn, error });
+    }, 1000);
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div>
+        <label>Payee Account #</label>
+        <input
+          type="text" placeholder="e.g. 1234567890"
+          value={account} onChange={e=>setAccount(e.target.value)} required
+        />
+      </div>
+      <div>
+        <label>Amount (USD)</label>
+        <input
+          type="number" placeholder="e.g. 2500"
+          value={amount} onChange={e=>setAmount(e.target.value)} required
+        />
+      </div>
+      <button type="submit">Submit Payment</button>
+    </form>
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React from 'react';
+export default function PaymentLog({ logs }) {
+  return (
+    <div className="logs">
+      <h2>Transaction Logs</h2>
+      {logs.map(log=>(
+        <div key={log.id} className="log-item">
+          <div><strong>{log.timestamp}</strong></div>
+          <div>Txn <em>#{log.id}</em> (<strong>Scenario {log.scenario}</strong>)</div>
+          <div>Error: {log.error}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+import React from 'react';
+export default function ScenarioSelector({ scenario, setScenario }) {
+  return (
+    <div style={{marginBottom:'16px'}}>
+      <label>Failure Scenario</label>
+      <select value={scenario} onChange={e => setScenario(e.target.value)}>
+        <option value="A">A: Account Closed/Frozen</option>
+        <option value="B">B: After Cutoff Period</option>
+        <option value="C">C: FX Pricing Not Available</option>
+      </select>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import ScenarioSelector from './components/ScenarioSelector';
+import PaymentForm from './components/PaymentForm';
+import PaymentLog from './components/PaymentLog';
+import './index.css';
+
+export default function App() {
+  const [scenario, setScenario] = useState('A');
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [dateTime, setDateTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setDateTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const addLog = entry => setLogs(prev => [entry, ...prev]);
+
+  return (
+    <>
+      {loading && (
+        <div className="loader-overlay">
+          <div className="loader" />
+        </div>
+      )}
+      <div className="container">
+        <div className="header">
+          <img src="https://companieslogo.com/img/orig/STAN.L-c30b7cd0.png?t=1720244494" alt="SCB Logo" />
+          <div className="datetime">
+            {dateTime.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric'})} &nbsp;
+            {dateTime.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}
+          </div>
+        </div>
+        <div className="content">
+          <div className="form-card">
+            <ScenarioSelector scenario={scenario} setScenario={setScenario} />
+            <PaymentForm
+              scenario={scenario}
+              addLog={entry => { addLog(entry); setLoading(false); }}
+              setLoading={setLoading}
+            />
+          </div>
+          <PaymentLog logs={logs} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+body {
+  margin: 0;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  background: linear-gradient(160deg, #e6f2ef 0%, #f7faf8 100%);
+}
+.container {
+  max-width: 600px;
+  margin: 80px auto;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, #00523F 0%, #00704A 100%);
+  padding: 16px 32px;
+}
+.header img { height: 42px; }
+.header .datetime {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.85);
+}
+.content {
+  padding: 32px;
+  background: #fdfdfd;
+}
+/* Form Card */
+.form-card {
+  background: #fbfbfb;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.05);
+  margin-bottom: 32px;
+}
+label {
+  display: block;
+  font-size: 0.9rem;
+  color: #004f36;
+  margin-bottom: 6px;
+}
+select, input {
+  width: 100%;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border: 1px solid #cddad6;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+select::placeholder, input::placeholder {
+  color: #aabbb5;
+}
+select:focus, input:focus {
+  outline: none;
+  border-color: #00523f;
+  box-shadow: 0 0 0 3px rgba(0,82,63,0.15);
+}
+button {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  padding: 14px;
+  background: #00704A;
+  color: #fff;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  transition: background 0.3s, transform 0.2s;
+}
+button:hover:not(:disabled) { background: #00523f; transform: translateY(-2px); }
+button:active { transform: translateY(0); }
+button:disabled { background: #a5c2b4; cursor: not-allowed; }
+button .ripple {
+  position: absolute; border-radius: 50%; transform: scale(0);
+  background: rgba(255,255,255,0.7);
+  animation: ripple-effect 600ms linear;
+}
+@keyframes ripple-effect { to { transform: scale(4); opacity: 0; }}
+
+/* Loader Overlay */
+.loader-overlay {
+  position: fixed; top:0; left:0; right:0; bottom:0;
+  background: rgba(255,255,255,0.85);
+  display: flex; align-items:center; justify-content:center;
+  z-index:1000;
+}
+.loader {
+  border: 6px solid #e0e0e0;
+  border-top: 6px solid #00704A;
+  border-radius:50%; width:50px; height:50px;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); }}
+
+/* Logs Timeline */
+.logs { margin-top:40px; }
+.logs h2 {
+  font-size:1.1rem;
+  color:#004f36;
+  margin-bottom:16px;
+}
+.log-item {
+  position: relative;
+  background:#fff;
+  padding:16px 20px;
+  margin-bottom:16px;
+  border-left:4px solid #00704A;
+  border-radius:4px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.05);
+  animation:fadeIn 0.5s ease-out;
+}
+.log-item::before {
+  content: '';
+  position:absolute; top:20px; left:-10px;
+  width:8px; height:8px;
+  background:#00704A;
+  border-radius:50%;
+}
+@keyframes fadeIn { from { opacity:0; transform:translateY(-5px);} to {opacity:1; transform:translateY(0);} }
