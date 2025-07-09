@@ -199,15 +199,15 @@ export default function EntitlementUserView({
 
   return (
     <div className={styles.container}>
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 2 }}>
-        <Typography fontFamily="Poppins" sx={{ fontWeight: 500, fontSize: 20, color: "white" }}>
-          Entitlement Users
-        </Typography>
-        <Grid container spacing={1} alignItems="center" sx={{ flex: 1, maxWidth: 600 }}>
-          <Grid item xs={12} sm={6}>
+      <Typography fontFamily="Poppins" sx={{ fontWeight: 500, fontSize: 20, color: "white", mb: 2 }}>
+        Entitlement Users
+      </Typography>
+
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2, flexWrap: "wrap" }}>
+        <Grid container spacing={1} alignItems="center" sx={{ flex: 1 }}>
+          <Grid item xs={12} sm={4} md={3}>
             <TextField
               size="small"
-              fullWidth
               placeholder={activeTab === "1" ? "Search by owner/name" : "Search entitlement name"}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -219,12 +219,12 @@ export default function EntitlementUserView({
                 ),
                 sx: { backgroundColor: "#1E252D", color: "white", borderRadius: 2 },
               }}
+              fullWidth
             />
           </Grid>
-          <Grid item xs={6} sm={3}>
+          <Grid item xs={6} sm={2} md={1.5}>
             <Button
               variant="contained"
-              size="small"
               fullWidth
               onClick={handleSearch}
               sx={{
@@ -233,13 +233,14 @@ export default function EntitlementUserView({
                 fontWeight: 600,
                 borderRadius: 2,
                 height: 36,
-                textTransform: "none"
+                textTransform: "none",
               }}
             >
               Search
             </Button>
           </Grid>
         </Grid>
+
         <Autocomplete
           size="small"
           sx={{ width: 250 }}
@@ -260,6 +261,7 @@ export default function EntitlementUserView({
             />
           )}
         />
+
         {activeTab === "1" && (
           <Button
             variant="contained"
@@ -285,87 +287,8 @@ export default function EntitlementUserView({
         <TabPane key="2" tab={<span style={{ fontWeight: 600, color: activeTab === "2" ? "#007BFF" : "#8D8D8D" }}>Entitlements</span>} />
       </Tabs>
 
-      <Box className={styles.tableSection}>
-        {loading ? (
-          <Box sx={{ textAlign: "center", p: 4 }}>
-            <CircularProgress sx={{ color: "white" }} />
-          </Box>
-        ) : error ? (
-          <Typography sx={{ color: "red", textAlign: "center" }}>{error}</Typography>
-        ) : (
-          <Box sx={{ border: "1px solid #444", p: 2, borderRadius: 1, bgcolor: "#1A2028", mt: 2 }}>
-            <MaterialTable
-              tableRows={activeTab === "1" ? accounts : entitlements}
-              tableCols={activeTab === "1" ? headCellsAccounts : headCellsEntitlements}
-              globalSearch={false}
-              onRowClick={(r) => openDrawer(r as any)}
-            />
-          </Box>
-        )}
-      </Box>
-
-      <Drawer
-        anchor="right"
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        sx={{ "& .MuiDrawer-paper": { width: 420, bgcolor: "#1A2028", p: 3, borderLeft: "1px solid #2F3A45" } }}
-      >
-        {drawerData && (
-          <>
-            <Typography variant="h6" sx={{ color: "white", fontWeight: 600, mb: 1 }}>
-              {drawerData.accountName || drawerData.entitlementName}
-            </Typography>
-            <Divider sx={{ bgcolor: "#2F3A45", mb: 2 }} />
-
-            <Box sx={{ bgcolor: "#1E252D", p: 2, borderRadius: 1 }}>
-              {activeTab === "1" ? (
-                <>
-                  <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Owner</Typography>
-                  <Typography sx={{ color: "white", mb: 1 }}>{drawerData.accountOwner}</Typography>
-                  <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Roles</Typography>
-                  <Typography sx={{ color: "white", mb: 1 }}>
-                    {drawerData.accessRoles.map((r: any) => r.roleName).join(", ")}
-                  </Typography>
-                  <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Status</Typography>
-                  <Typography sx={{ color: "white", mb: 1 }}>{drawerData.accountStatus}</Typography>
-                  <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Type</Typography>
-                  <Typography sx={{ color: "white" }}>{drawerData.accountType}</Typography>
-                </>
-              ) : (
-                <>
-                  <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Description</Typography>
-                  <Typography sx={{ color: "white", mb: 1 }}>{drawerData.entitlementDescription}</Typography>
-                  <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Owner</Typography>
-                  <Typography sx={{ color: "white", mb: 1 }}>{drawerData.entitlementOwner}</Typography>
-                  <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Privileged</Typography>
-                  <Typography sx={{ color: "white" }}>{drawerData.isPrivileged}</Typography>
-                </>
-              )}
-            </Box>
-
-            {activeTab === "1" && (
-              <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<DeleteIcon />}
-                  sx={{ color: "white", borderColor: "white", textTransform: "none" }}
-                  onClick={() => deleteAccount(drawerData.accountName)}
-                >
-                  Delete
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<EditIcon />}
-                  sx={{ textTransform: "none" }}
-                  onClick={() => onEditAccount?.(drawerData.accountOwner)}
-                >
-                  Edit
-                </Button>
-              </Box>
-            )}
-          </>
-        )}
-      </Drawer>
+      <Box className={styles.tableSection}>...</Box>
+      <Drawer>...</Drawer>
     </div>
   );
 }
