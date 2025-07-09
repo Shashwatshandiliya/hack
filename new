@@ -199,11 +199,11 @@ export default function EntitlementUserView({
 
   return (
     <div className={styles.container}>
-      <Typography fontFamily="Poppins" sx={{ fontWeight: 600, fontSize: 24, color: "white", mb: 3 }}>
+      <Typography fontFamily="Poppins" sx={{ fontWeight: 600, fontSize: 24, color: "white", mb: 2 }}>
         Entitlement Users
       </Typography>
 
-      {activeTab === "1" && (
+      {(activeTab === "1" || activeTab === "2") && (
         <Grid container spacing={2} alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={4}>
             <Autocomplete
@@ -232,7 +232,11 @@ export default function EntitlementUserView({
             <Box sx={{ display: "flex", gap: 1 }}>
               <TextField
                 size="small"
-                placeholder="Search by owner/name"
+                placeholder={
+                  activeTab === "1"
+                    ? "Search by owner/name"
+                    : "Search entitlement name"
+                }
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 InputProps={{
@@ -261,16 +265,18 @@ export default function EntitlementUserView({
             </Box>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3} textAlign="right">
-            <Button
-              variant="contained"
-              startIcon={<AddCircleIcon />}
-              onClick={() => onNavigate?.("create-account")}
-              sx={{ height: 40, fontWeight: 600, fontSize: 14 }}
-            >
-              Create Account
-            </Button>
-          </Grid>
+          {activeTab === "1" && (
+            <Grid item xs={12} sm={6} md={3} textAlign="right">
+              <Button
+                variant="contained"
+                startIcon={<AddCircleIcon />}
+                onClick={() => onNavigate?.("create-account")}
+                sx={{ height: 40, fontWeight: 600, fontSize: 14 }}
+              >
+                Create Account
+              </Button>
+            </Grid>
+          )}
         </Grid>
       )}
 
