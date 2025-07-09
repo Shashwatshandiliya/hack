@@ -1,261 +1,207 @@
-// src/components/EntitlementUserView/CreateEntitlementUser.tsx
-import React, { useState, useEffect } from "react";
+// src/components/EntitlementUserView/EntitlementUserView.tsx
+import * as React from "react";
+import axios from "axios";
+import Grid from "@mui/material/Grid";
+import Button from "@mui/material/Button";
+import Box from "@mui/material/Box";
+import MaterialTable from "../../../Root/components/MaterialTable";
 import {
-  Box,
-  Button,
-  Grid,
-  IconButton,
-  MenuItem,
-  Select,
+  InputAdornment,
   TextField,
   Typography,
-  SelectChangeEvent,
-  OutlinedInput,
-  Chip,
-  Snackbar,
-  Alert,
+  CircularProgress,
+  Divider,
+  MenuItem,
+  Select,
   FormControl,
-  InputLabel,
+  SelectChangeEvent,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import styles from "./CreateEntitlementUser.module.css";
-import axios from "axios";
+import AddCircleIcon from "@mui/icons-material/AddCircle";
+import SearchIcon from "@mui/icons-material/Search";
+import { Tabs } from "antd";
+import Drawer from "@mui/material/Drawer";
+import styles from "./EntitlementUserView.module.css";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 
-interface CreateEntitlementUserProps {
-  onBack: () => void;
+const { TabPane } = Tabs;
+
+interface AccountRow {
+  accountOwner: string;
+  accountName: string;
+  accountType: string;
+  accessRoles: { roleName: string }[];
+  accountStatus: string;
 }
 
-const accountTypes = ["User", "System"];
-const statusOptions = ["Active", "Inactive"];
+interface EntitlementRow {
+  entitlementName: string;
+  entitlementDescription: string;
+  entitlementOwner: string;
+  isPrivileged: string;
+}
 
-export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserProps) {
-  const [bankId, setBankId] = useState("");
-  const [owner, setOwner] = useState("");
-  const [roles, setRoles] = useState<string[]>([]);
-  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
-  const [accountType, setAccountType] = useState("");
-  const [status, setStatus] = useState("");
-  const [appName, setAppName] = useState("");
-  const [appOptions, setAppOptions] = useState<string[]>([]);
+export default function EntitlementUserView({
+  onNavigate,
+  onEditAccount,
+}: {
+  onNavigate?: (tab: string) => void;
+  onEditAccount?: (id: string) => void;
+}) {
+  const [activeTab, setActiveTab] = React.useState<"1" | "2">("1");
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [drawerData, setDrawerData] = React.useState<any>(null);
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [selectedApp, setSelectedApp] = React.useState("SAIL");
+  const [appList, setAppList] = React.useState<string[]>([]);
+  const [accounts, setAccounts] = React.useState<AccountRow[]>([]);
+  const [entitlements, setEntitlements] = React.useState<EntitlementRow[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
 
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState("");
-  const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">("success");
+  const loadAppList = async () => {
+    try {
+      const { data } = await axios.get("http://mc.shashwat.com:69696/allappplciation");
+      setAppList(data.map((app: any) => app.appName));
+    } catch {
+      setAppList(["SAIL"]);
+    }
+  };
 
-  useEffect(() => {
-    axios.get("http://mc.shashwat.com:69696/allappplciation")
-      .then(res => setAppOptions(res.data.map((a: any) => a.appName)))
-      .catch((err) => {
-        console.error(err);
-        setAppOptions([]);
+  const loadAllAccounts = async () => {
+    setError("");
+    try {
+      setLoading(true);
+      const { data } = await axios.get("http://mc.shashwat.com:69696/restService/one/aacc", {
+        headers: { applicationName: selectedApp },
       });
+      setAccounts(data.accounts || []);
+    } catch {
+      setError("Failed to load accounts");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAllEntitlements = async () => {
+    setError("");
+    try {
+      setLoading(true);
+      const { data } = await axios.get("http://mc.shashwat.com:69696/restService/one/entity", {
+        headers: { applicationName: selectedApp },
+      });
+      setEntitlements(data.entitlements || []);
+    } catch {
+      setError("Failed to load entitlements");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadAppList();
   }, []);
 
-  useEffect(() => {
-    if (appName) {
-      axios.get("http://mc.shashwat.com:69696/restService/one/entity", {
-        headers: { applicationName: appName },
-      })
-      .then(res => setAvailableRoles((res.data?.entitlements || []).map((e: any) => e.entitlementName)))
-      .catch((err) => {
-        console.error(err);
-        setAvailableRoles([]);
-      });
-    }
-  }, [appName]);
+  React.useEffect(() => {
+    if (activeTab === "1") loadAllAccounts();
+    else loadAllEntitlements();
+  }, [activeTab, selectedApp]);
 
-  const handleSubmit = async () => {
-    if (!bankId || !owner || roles.length === 0 || !accountType || !status || !appName) {
-      setSnackbarMessage("Please fill all fields and select at least one role.");
-      setSnackbarSeverity("error");
-      setSnackbarOpen(true);
+  const handleSearch = async () => {
+    setError("");
+    if (!searchTerm) {
+      activeTab === "1" ? loadAllAccounts() : loadAllEntitlements();
       return;
     }
-
     try {
-      await axios.post(
-        "http://mc.shashwat.com:69696/restService/one/entitlement/adduser",
+      setLoading(true);
+      if (activeTab === "1") {
+        const { data } = await axios.get(
+          `http://mc.shashwat.com:69696/restService/one/account/${searchTerm}`
+        );
+        setAccounts(data ? [data] : []);
+      } else {
+        const { data } = await axios.get(
+          `http://mc.shashwat.com:69696/restService/one/entitlement/${searchTerm}`
+        );
+        setEntitlements(data ? [data] : []);
+      }
+    } catch {
+      setError("No results found");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    try {
+      const { data } = await axios.post(
+        `http://mc.shashwat.com:69696/restService/one/Delete`,
+        { accountName: drawerData.accountName },
         {
-          accountName: bankId,
-          accountOwner: owner,
-          accountType,
-          accountStatus: status,
-          accountDescription: "",
-          isPrivileged: "No",
-          lastLogin: new Date().toISOString(),
-          applicationName: appName,
-          accessRoles: roles.map((role) => ({
-            roleName: role,
-            entitlementName: role,
-            entitlementDescription: "Auto-generated",
-            entitlementOwner: owner,
-            isPrivileged: "No",
-          })),
-        },
-        {
-          headers: { applicationName: appName },
+          headers: { applicationName: selectedApp },
         }
       );
-
-      setSnackbarMessage("Entitlement User created successfully.");
-      setSnackbarSeverity("success");
-      setSnackbarOpen(true);
-      setBankId("");
-      setOwner("");
-      setRoles([]);
-      setAccountType("");
-      setStatus("");
-      setAppName("");
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.statusMessage || "Failed to create user. Please try again.";
-      setSnackbarMessage(errorMessage);
-      setSnackbarSeverity("error");
-      setSnackbarOpen(true);
+      loadAllAccounts();
+      setDrawerOpen(false);
+      setConfirmDeleteOpen(false);
+    } catch (err: any) {
+      setConfirmDeleteOpen(false);
+      alert(err?.response?.data?.statusMessage || "Failed to delete account");
     }
   };
 
   return (
-    <Box className={styles.container}>
-      <Box className={styles.header}>
-        <IconButton onClick={onBack} sx={{ color: "white" }}>
-          <ArrowBackIcon />
-        </IconButton>
-        <Typography variant="h6" sx={{ color: "white", ml: 1 }}>
-          Create Entitlement User
-        </Typography>
-      </Box>
+    <>
+      {/* Existing JSX */}
 
-      <Box className={styles.formCard}>
-        <Typography className={styles.sectionTitle}>Account Details</Typography>
-
-        <Grid container spacing={2} sx={{ mt: 1 }}>
-          <Grid item xs={12} md={6}>
-            <TextField
-              fullWidth
-              variant="outlined"
-              label="Bank ID"
-              size="small"
-              value={bankId}
-              onChange={(e) => setBankId(e.target.value)}
-              InputProps={{ sx: { backgroundColor: "#1E252D", color: "white" } }}
-              InputLabelProps={{ sx: { color: "#CBCBCB" } }}
-            />
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <TextField
-              fullWidth
-              variant="outlined"
-              label="Account Owner"
-              size="small"
-              value={owner}
-              onChange={(e) => setOwner(e.target.value)}
-              InputProps={{ sx: { backgroundColor: "#1E252D", color: "white" } }}
-              InputLabelProps={{ sx: { color: "#CBCBCB" } }}
-            />
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Select
-              fullWidth
-              displayEmpty
-              size="small"
-              value={appName}
-              onChange={(e: SelectChangeEvent) => setAppName(e.target.value)}
-              sx={{ backgroundColor: "#1E252D", color: appName ? "white" : "#CBCBCB", borderRadius: 1 }}
-              renderValue={(selected) => selected || "Select Application"}
-            >
-              {appOptions.map((a) => (
-                <MenuItem key={a} value={a}>{a}</MenuItem>
-              ))}
-            </Select>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <FormControl fullWidth size="small">
-              <InputLabel sx={{ color: "#CBCBCB" }}>Role(s)</InputLabel>
-              <Select
-                multiple
-                value={roles}
-                onChange={(e) => setRoles(e.target.value as string[])}
-                input={<OutlinedInput label="Role(s)" />}
-                renderValue={(selected) => (
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                    {selected.map((value) => (
-                      <Chip
-                        key={value}
-                        label={value}
-                        sx={{ backgroundColor: "#007BFF", color: "white" }}
-                      />
-                    ))}
-                  </Box>
-                )}
-                sx={{ backgroundColor: "#1E252D", color: "white", borderRadius: 1 }}
-              >
-                {availableRoles.map((r) => (
-                  <MenuItem key={r} value={r}>{r}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Select
-              fullWidth
-              displayEmpty
-              size="small"
-              value={accountType}
-              onChange={(e: SelectChangeEvent) => setAccountType(e.target.value)}
-              sx={{ backgroundColor: "#1E252D", color: accountType ? "white" : "#CBCBCB", borderRadius: 1 }}
-              renderValue={(selected) => selected || "Account Type"}
-            >
-              {accountTypes.map((t) => (
-                <MenuItem key={t} value={t}>{t}</MenuItem>
-              ))}
-            </Select>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Select
-              fullWidth
-              displayEmpty
-              size="small"
-              value={status}
-              onChange={(e: SelectChangeEvent) => setStatus(e.target.value)}
-              sx={{ backgroundColor: "#1E252D", color: status ? "white" : "#CBCBCB", borderRadius: 1 }}
-              renderValue={(selected) => selected || "Status"}
-            >
-              {statusOptions.map((s) => (
-                <MenuItem key={s} value={s}>{s}</MenuItem>
-              ))}
-            </Select>
-          </Grid>
-        </Grid>
-
-        <Box sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "flex-end" }}>
-          <Button variant="outlined" color="inherit" onClick={onBack} sx={{ textTransform: "none" }}>
+      <Dialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+      >
+        <DialogTitle>Confirm Deletion</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete account "{drawerData?.accountName}"?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteOpen(false)} color="primary">
             Cancel
           </Button>
-          <Button variant="contained" onClick={handleSubmit} sx={{ textTransform: "none" }}>
-            Create
+          <Button onClick={deleteAccount} color="error">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Inside Drawer action buttons */}
+      {activeTab === "1" && (
+        <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+          <Button
+            variant="outlined"
+            startIcon={<DeleteIcon />}
+            sx={{ color: "white", borderColor: "white", textTransform: "none" }}
+            onClick={() => setConfirmDeleteOpen(true)}
+          >
+            Delete
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<EditIcon />}
+            sx={{ textTransform: "none" }}
+            onClick={() => onEditAccount?.(drawerData.accountOwner)}
+          >
+            Edit
           </Button>
         </Box>
-      </Box>
-
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3000}
-        onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          severity={snackbarSeverity}
-          onClose={() => setSnackbarOpen(false)}
-          sx={{ width: "100%" }}
-        >
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
-    </Box>
+      )}
+    </>
   );
 }
