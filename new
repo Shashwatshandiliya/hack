@@ -11,8 +11,7 @@ import {
   Typography,
   CircularProgress,
   Divider,
-  MenuItem,
-  Select,
+  Autocomplete,
 } from "@mui/material";
 import AddCircleIcon from "@mui/icons-material/AddCircle";
 import SearchIcon from "@mui/icons-material/Search";
@@ -50,20 +49,21 @@ export default function EntitlementUserView({
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [drawerData, setDrawerData] = React.useState<any>(null);
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [selectedApp, setSelectedApp] = React.useState("SAIL");
+  const [appList, setAppList] = React.useState<string[]>([]);
+
   const [accounts, setAccounts] = React.useState<AccountRow[]>([]);
   const [entitlements, setEntitlements] = React.useState<EntitlementRow[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
-  const [appName, setAppName] = React.useState("SAIL");
-  const [applications, setApplications] = React.useState<string[]>([]);
 
-  const loadApplications = async () => {
+  const loadAppList = async () => {
     try {
       const { data } = await axios.get("http://mc.shashwat.com:69696/allappplciation");
-      const appNames = (data || []).map((a: any) => a.appName);
-      setApplications(appNames);
+      const appNames = data.map((app: any) => app.appName);
+      setAppList(appNames);
     } catch {
-      setApplications(["SAIL"]);
+      setError("Failed to load application list");
     }
   };
 
@@ -72,15 +72,14 @@ export default function EntitlementUserView({
     try {
       setLoading(true);
       const { data } = await axios.get(
-        "https://uklvauems02a.uk.standardchartered.com:32447/restService/onecert/v1/account",
+        `https://uklvauems02a.uk.standardchartered.com:32447/restService/onecert/v1/account?currentPage=1&pageSize=10`,
         {
-          params: { currentPage: 1, pageSize: 10 },
-          headers: { applicationName: appName },
+          headers: { applicationName: selectedApp }
         }
       );
       setAccounts(data.accounts || []);
     } catch {
-      setError("Failed to load accounts from OneCert");
+      setError("Failed to load accounts");
     } finally {
       setLoading(false);
     }
@@ -91,7 +90,10 @@ export default function EntitlementUserView({
     try {
       setLoading(true);
       const { data } = await axios.get(
-        "http://mc.shashwat.com:69696/restService/one/entity"
+        `http://mc.shashwat.com:69696/restService/one/entity`,
+        {
+          headers: { applicationName: selectedApp }
+        }
       );
       setEntitlements(data.entitlements || []);
     } catch {
@@ -102,39 +104,13 @@ export default function EntitlementUserView({
   };
 
   React.useEffect(() => {
-    loadApplications();
+    loadAppList();
   }, []);
 
   React.useEffect(() => {
     if (activeTab === "1") loadAllAccounts();
     else loadAllEntitlements();
-  }, [activeTab, appName]);
-
-  const handleSearch = async () => {
-    setError("");
-    if (!searchTerm) {
-      activeTab === "1" ? loadAllAccounts() : loadAllEntitlements();
-      return;
-    }
-    try {
-      setLoading(true);
-      if (activeTab === "1") {
-        const { data } = await axios.get(
-          `http://mc.shashwat.com:69696/restService/one/account/${searchTerm}`
-        );
-        setAccounts(data ? [data] : []);
-      } else {
-        const { data } = await axios.get(
-          `http://mc.shashwat.com:69696/restService/one/entitlement/${searchTerm}`
-        );
-        setEntitlements(data ? [data] : []);
-      }
-    } catch {
-      setError("No results found");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [activeTab, selectedApp]);
 
   const headCellsAccounts = [
     { accessorKey: "accountOwner", header: "Account Owner" },
@@ -197,70 +173,47 @@ export default function EntitlementUserView({
 
   return (
     <div className={styles.container}>
-      <Typography fontFamily="Poppins" sx={{ fontWeight: 500, fontSize: 20, color: "white", mb: 2 }}>
-        Entitlement Users
-      </Typography>
-
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-        <Tabs
-          activeKey={activeTab}
-          onChange={(k) => {
-            setActiveTab(k as "1" | "2");
-            setSearchTerm("");
-            setDrawerOpen(false);
-          }}
-          className={styles.tabs}
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+        <Typography
+          fontFamily="Poppins"
+          sx={{ fontWeight: 500, fontSize: 20, color: "white" }}
         >
-          <TabPane tab={<span style={{ fontWeight: 600, color: activeTab === "1" ? "#007BFF" : "#8D8D8D" }}>Accounts</span>} key="1" />
-          <TabPane tab={<span style={{ fontWeight: 600, color: activeTab === "2" ? "#007BFF" : "#8D8D8D" }}>Entitlements</span>} key="2" />
-        </Tabs>
-
-        {activeTab === "1" && (
-          <Select
-            size="small"
-            value={appName}
-            onChange={(e) => setAppName(e.target.value)}
-            sx={{ backgroundColor: "#1E252D", color: "white", height: 36 }}
-          >
-            {applications.map((app) => (
-              <MenuItem key={app} value={app}>{app}</MenuItem>
-            ))}
-          </Select>
-        )}
-      </Box>
-
-      <Box className={styles.filterSection}>
-        <Grid container alignItems="center" spacing={2} wrap="nowrap">
-          <Grid item xs={12} md={6} lg={5}>
+          Entitlement Users
+        </Typography>
+        <Autocomplete
+          size="small"
+          sx={{ width: 250 }}
+          options={appList}
+          value={selectedApp}
+          onChange={(event, newValue) => {
+            if (newValue) setSelectedApp(newValue);
+          }}
+          renderInput={(params) => (
             <TextField
-              placeholder={activeTab === "1" ? "Search by owner/name" : "Search entitlement name"}
-              size="small"
-              fullWidth
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              {...params}
+              label="Select App"
               InputProps={{
-                startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: "#CBCBCB" }} /></InputAdornment>,
-                sx: { backgroundColor: "#1E252D", color: "white", borderRadius: 1 },
+                ...params.InputProps,
+                sx: { backgroundColor: "#1E252D", color: "white" },
               }}
+              InputLabelProps={{ sx: { color: "#CBCBCB" } }}
             />
-          </Grid>
-          <Grid item xs={6} md={2} lg={1}>
-            <Button variant="outlined" size="small" onClick={handleSearch} sx={{ color: "white", borderColor: "white", height: 36, width: "100%" }}>
-              Search
-            </Button>
-          </Grid>
-          <Grid item xs={6} md={6} lg={8} textAlign="right">
-            <Button
-              variant="contained"
-              startIcon={<AddCircleIcon />}
-              onClick={() => onNavigate?.(activeTab === "1" ? "create-account" : "create-entitlement-user")}
-              sx={{ height: 36, fontWeight: 600, fontSize: 12 }}
-            >
-              {activeTab === "1" ? "Create Account" : "Create Entitlement"}
-            </Button>
-          </Grid>
-        </Grid>
+          )}
+        />
       </Box>
+
+      <Tabs
+        activeKey={activeTab}
+        onChange={(k) => {
+          setActiveTab(k as "1" | "2");
+          setSearchTerm("");
+          setDrawerOpen(false);
+        }}
+        className={styles.tabs}
+      >
+        <TabPane key="1" tab={<span style={{ fontWeight: 600, color: activeTab === "1" ? "#007BFF" : "#8D8D8D" }}>Accounts</span>} />
+        <TabPane key="2" tab={<span style={{ fontWeight: 600, color: activeTab === "2" ? "#007BFF" : "#8D8D8D" }}>Entitlements</span>} />
+      </Tabs>
 
       <Box className={styles.tableSection}>
         {loading ? (
@@ -300,7 +253,9 @@ export default function EntitlementUserView({
                   <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Owner</Typography>
                   <Typography sx={{ color: "white", mb: 1 }}>{drawerData.accountOwner}</Typography>
                   <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Roles</Typography>
-                  <Typography sx={{ color: "white", mb: 1 }}>{drawerData.accessRoles.map((r: any) => r.roleName).join(", ")}</Typography>
+                  <Typography sx={{ color: "white", mb: 1 }}>
+                    {drawerData.accessRoles.map((r:any) => r.roleName).join(", ")}
+                  </Typography>
                   <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Status</Typography>
                   <Typography sx={{ color: "white", mb: 1 }}>{drawerData.accountStatus}</Typography>
                   <Typography sx={{ color: "#8D8D8D", mb: .5 }}>Type</Typography>
@@ -320,10 +275,20 @@ export default function EntitlementUserView({
 
             {activeTab === "1" && (
               <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-                <Button variant="outlined" startIcon={<DeleteIcon />} sx={{ color: "white", borderColor: "white", textTransform: "none" }} onClick={() => deleteAccount(drawerData.accountName)}>
+                <Button
+                  variant="outlined"
+                  startIcon={<DeleteIcon />}
+                  sx={{ color: "white", borderColor: "white", textTransform: "none" }}
+                  onClick={() => deleteAccount(drawerData.accountName)}
+                >
                   Delete
                 </Button>
-                <Button variant="contained" startIcon={<EditIcon />} sx={{ textTransform: "none" }} onClick={() => onEditAccount?.(drawerData.accountOwner)}>
+                <Button
+                  variant="contained"
+                  startIcon={<EditIcon />}
+                  sx={{ textTransform: "none" }}
+                  onClick={() => onEditAccount?.(drawerData.accountOwner)}
+                >
                   Edit
                 </Button>
               </Box>
