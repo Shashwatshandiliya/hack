@@ -45,7 +45,10 @@ export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserP
   useEffect(() => {
     axios.get("http://mc.shashwat.com:69696/allappplciation")
       .then(res => setAppOptions(res.data.map((a: any) => a.appName)))
-      .catch(() => setAppOptions([]));
+      .catch((err) => {
+        console.error(err);
+        setAppOptions([]);
+      });
   }, []);
 
   useEffect(() => {
@@ -54,7 +57,10 @@ export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserP
         headers: { applicationName: appName },
       })
       .then(res => setAvailableRoles((res.data?.entitlements || []).map((e: any) => e.entitlementName)))
-      .catch(() => setAvailableRoles([]));
+      .catch((err) => {
+        console.error(err);
+        setAvailableRoles([]);
+      });
     }
   }, [appName]);
 
@@ -100,8 +106,9 @@ export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserP
       setAccountType("");
       setStatus("");
       setAppName("");
-    } catch (error) {
-      setSnackbarMessage("Failed to create user. Please try again.");
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.statusMessage || "Failed to create user. Please try again.";
+      setSnackbarMessage(errorMessage);
       setSnackbarSeverity("error");
       setSnackbarOpen(true);
     }
