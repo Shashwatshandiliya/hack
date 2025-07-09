@@ -1,20 +1,19 @@
 // src/components/EntitlementUserView/EntitlementUserView.tsx
 import * as React from "react";
 import axios from "axios";
-import Grid from "@mui/material/Grid";
-import Button from "@mui/material/Button";
-import Box from "@mui/material/Box";
-import MaterialTable from "../../../Root/components/MaterialTable";
 import {
-  InputAdornment,
-  TextField,
-  Typography,
+  Box,
+  Button,
   CircularProgress,
   Divider,
+  Drawer,
+  FormControl,
+  InputAdornment,
   MenuItem,
   Select,
-  FormControl,
   SelectChangeEvent,
+  TextField,
+  Typography,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -23,11 +22,11 @@ import {
 } from "@mui/material";
 import AddCircleIcon from "@mui/icons-material/AddCircle";
 import SearchIcon from "@mui/icons-material/Search";
-import { Tabs } from "antd";
-import Drawer from "@mui/material/Drawer";
-import styles from "./EntitlementUserView.module.css";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { Tabs } from "antd";
+import MaterialTable from "../../../Root/components/MaterialTable";
+import styles from "./EntitlementUserView.module.css";
 
 const { TabPane } = Tabs;
 
@@ -64,6 +63,15 @@ export default function EntitlementUserView({
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    loadAppList();
+  }, []);
+
+  React.useEffect(() => {
+    if (activeTab === "1") loadAllAccounts();
+    else loadAllEntitlements();
+  }, [activeTab, selectedApp]);
 
   const loadAppList = async () => {
     try {
@@ -104,15 +112,6 @@ export default function EntitlementUserView({
     }
   };
 
-  React.useEffect(() => {
-    loadAppList();
-  }, []);
-
-  React.useEffect(() => {
-    if (activeTab === "1") loadAllAccounts();
-    else loadAllEntitlements();
-  }, [activeTab, selectedApp]);
-
   const handleSearch = async () => {
     setError("");
     if (!searchTerm) {
@@ -139,9 +138,53 @@ export default function EntitlementUserView({
     }
   };
 
+  const headCellsAccounts = [
+    { accessorKey: "accountOwner", header: "Account Owner" },
+    { accessorKey: "accountName", header: "Account Name" },
+    {
+      accessorKey: "accessRoles",
+      header: "Roles",
+      Cell: ({ cell }: any) =>
+        (cell.getValue() as { roleName: string }[]).map((r) => r.roleName).join(", "),
+    },
+    {
+      accessorKey: "accountStatus",
+      header: "Status",
+      Cell: ({ cell }: any) => {
+        const v = (cell.getValue() as string).toLowerCase();
+        const active = v === "active";
+        return (
+          <span
+            style={{
+              backgroundColor: active ? "#2BCBC11A" : "#ff00001A",
+              color: active ? "#2BCBC1" : "#ff0000",
+              padding: "0.25rem 0.5rem",
+              borderRadius: "20px",
+            }}
+          >
+            {active ? "Enabled" : "Inactive"}
+          </span>
+        );
+      },
+    },
+    { accessorKey: "accountType", header: "Account Type" },
+  ];
+
+  const headCellsEntitlements = [
+    { accessorKey: "entitlementName", header: "Name" },
+    { accessorKey: "entitlementDescription", header: "Description" },
+    { accessorKey: "entitlementOwner", header: "Owner" },
+    { accessorKey: "isPrivileged", header: "Privileged" },
+  ];
+
+  const openDrawer = (row: any) => {
+    setDrawerData(row);
+    setDrawerOpen(true);
+  };
+
   const deleteAccount = async () => {
     try {
-      const { data } = await axios.delete(
+      await axios.delete(
         `http://mc.shashwat.com:69696/restService/onecert/v1/deleteAccount/${drawerData.accountName}`,
         {
           headers: { applicationName: selectedApp },
@@ -157,45 +200,134 @@ export default function EntitlementUserView({
   };
 
   return (
-    <>
-      <Typography>Entitlement Users</Typography>
-      {/* ...rest of your component UI remains unchanged... */}
+    <div className={styles.container}>
+      <Typography fontFamily="Poppins" sx={{ fontWeight: 500, fontSize: 20, color: "white", mb: 2 }}>
+        Entitlement Users
+      </Typography>
+
+      <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" mb={2}>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <Select
+            value={selectedApp}
+            onChange={(e: SelectChangeEvent) => setSelectedApp(e.target.value)}
+            displayEmpty
+            inputProps={{ "aria-label": "Select Application" }}
+            sx={{ backgroundColor: "#1E252D", color: "white" }}
+          >
+            {appList.map((app) => (
+              <MenuItem key={app} value={app}>{app}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <Box display="flex" gap={1} alignItems="center">
+          <TextField
+            placeholder={activeTab === "1" ? "Search by owner/name" : "Search entitlement name"}
+            size="small"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: "#CBCBCB" }} />
+                </InputAdornment>
+              ),
+              sx: { backgroundColor: "#1E252D", color: "white", borderRadius: 1 },
+            }}
+          />
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handleSearch}
+            sx={{ height: 36, textTransform: "none" }}
+          >
+            Search
+          </Button>
+        </Box>
+
+        {activeTab === "1" && (
+          <Button
+            variant="contained"
+            startIcon={<AddCircleIcon />}
+            onClick={() => onNavigate?.("create-account")}
+            sx={{ height: 36, fontWeight: 600, fontSize: 12 }}
+          >
+            Create Account
+          </Button>
+        )}
+      </Box>
+
+      <Tabs
+        activeKey={activeTab}
+        onChange={(k) => {
+          setActiveTab(k as "1" | "2");
+          setSearchTerm("");
+          setDrawerOpen(false);
+        }}
+        className={styles.tabs}
+      >
+        <TabPane tab={<span style={{ fontWeight: 600, color: activeTab === "1" ? "#007BFF" : "#8D8D8D" }}>Accounts</span>} key="1" />
+        <TabPane tab={<span style={{ fontWeight: 600, color: activeTab === "2" ? "#007BFF" : "#8D8D8D" }}>Entitlements</span>} key="2" />
+      </Tabs>
+
+      <Box className={styles.tableSection}>
+        {loading ? (
+          <Box sx={{ textAlign: "center", p: 4 }}>
+            <CircularProgress sx={{ color: "white" }} />
+          </Box>
+        ) : error ? (
+          <Typography sx={{ color: "red", textAlign: "center" }}>{error}</Typography>
+        ) : (
+          <Box sx={{ border: "1px solid #444", p: 2, borderRadius: 1, bgcolor: "#1A2028", mt: 2 }}>
+            <MaterialTable
+              tableRows={activeTab === "1" ? accounts : entitlements}
+              tableCols={activeTab === "1" ? headCellsAccounts : headCellsEntitlements}
+              globalSearch={false}
+              onRowClick={(r) => openDrawer(r as any)}
+            />
+          </Box>
+        )}
+      </Box>
 
       <Drawer
         anchor="right"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
+        sx={{ "& .MuiDrawer-paper": { width: 420, bgcolor: "#1A2028", p: 3, borderLeft: "1px solid #2F3A45" } }}
       >
-        <Box>
-          <Typography variant="h6">{drawerData?.accountName}</Typography>
-          <Divider />
-          <Box>
-            <Typography>Owner: {drawerData?.accountOwner}</Typography>
-            <Typography>Type: {drawerData?.accountType}</Typography>
-          </Box>
-          <Box sx={{ mt: 2 }}>
-            <Button
-              variant="outlined"
-              startIcon={<DeleteIcon />}
-              onClick={() => setConfirmDeleteOpen(true)}
-            >
-              Delete
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<EditIcon />}
-              onClick={() => onEditAccount?.(drawerData.accountOwner)}
-            >
-              Edit
-            </Button>
-          </Box>
-        </Box>
+        {drawerData && (
+          <>
+            <Typography variant="h6" sx={{ color: "white", fontWeight: 600, mb: 1 }}>
+              {drawerData.accountName || drawerData.entitlementName}
+            </Typography>
+            <Divider sx={{ bgcolor: "#2F3A45", mb: 2 }} />
+            <Box sx={{ bgcolor: "#1E252D", p: 2, borderRadius: 1 }}>
+              <Typography sx={{ color: "#8D8D8D", mb: 1 }}>Owner: {drawerData.accountOwner}</Typography>
+              <Typography sx={{ color: "#8D8D8D", mb: 1 }}>Type: {drawerData.accountType}</Typography>
+            </Box>
+            <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+              <Button
+                variant="outlined"
+                startIcon={<DeleteIcon />}
+                sx={{ color: "white", borderColor: "white", textTransform: "none" }}
+                onClick={() => setConfirmDeleteOpen(true)}
+              >
+                Delete
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<EditIcon />}
+                sx={{ textTransform: "none" }}
+                onClick={() => onEditAccount?.(drawerData.accountOwner)}
+              >
+                Edit
+              </Button>
+            </Box>
+          </>
+        )}
       </Drawer>
 
-      <Dialog
-        open={confirmDeleteOpen}
-        onClose={() => setConfirmDeleteOpen(false)}
-      >
+      <Dialog open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)}>
         <DialogTitle>Confirm Deletion</DialogTitle>
         <DialogContent>
           <DialogContentText>
@@ -211,6 +343,6 @@ export default function EntitlementUserView({
           </Button>
         </DialogActions>
       </Dialog>
-    </>
+    </div>
   );
 }
