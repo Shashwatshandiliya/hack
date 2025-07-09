@@ -1,5 +1,5 @@
 // src/components/EntitlementUserView/CreateEntitlementUser.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -25,23 +25,41 @@ interface CreateEntitlementUserProps {
   onBack: () => void;
 }
 
-const dummyRoles = ["Maker", "Checker", "Viewer", "Admin"];
-const dummyAccountTypes = ["User", "Admin", "System", "Manager"];
-const dummyStatus = ["Active", "Inactive"];
+const accountTypes = ["User", "System"];
+const statusOptions = ["Active", "Inactive"];
 
 export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserProps) {
   const [bankId, setBankId] = useState("");
   const [owner, setOwner] = useState("");
   const [roles, setRoles] = useState<string[]>([]);
+  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
   const [accountType, setAccountType] = useState("");
   const [status, setStatus] = useState("");
+  const [appName, setAppName] = useState("");
+  const [appOptions, setAppOptions] = useState<string[]>([]);
 
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error">("success");
 
+  useEffect(() => {
+    axios.get("http://mc.shashwat.com:69696/allappplciation")
+      .then(res => setAppOptions(res.data.map((a: any) => a.appName)))
+      .catch(() => setAppOptions([]));
+  }, []);
+
+  useEffect(() => {
+    if (appName) {
+      axios.get("http://mc.shashwat.com:69696/restService/one/entity", {
+        headers: { applicationName: appName },
+      })
+      .then(res => setAvailableRoles((res.data?.entitlements || []).map((e: any) => e.entitlementName)))
+      .catch(() => setAvailableRoles([]));
+    }
+  }, [appName]);
+
   const handleSubmit = async () => {
-    if (!bankId || !owner || roles.length === 0 || !accountType || !status) {
+    if (!bankId || !owner || roles.length === 0 || !accountType || !status || !appName) {
       setSnackbarMessage("Please fill all fields and select at least one role.");
       setSnackbarSeverity("error");
       setSnackbarOpen(true);
@@ -59,29 +77,29 @@ export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserP
           accountDescription: "",
           isPrivileged: "No",
           lastLogin: new Date().toISOString(),
-          applicationName: "SAIL",
+          applicationName: appName,
           accessRoles: roles.map((role) => ({
             roleName: role,
-            entitlementName: "SampleEntitlement",
+            entitlementName: role,
             entitlementDescription: "Auto-generated",
             entitlementOwner: owner,
             isPrivileged: "No",
           })),
         },
         {
-          headers: { applicationName: "SAIL" },
+          headers: { applicationName: appName },
         }
       );
 
       setSnackbarMessage("Entitlement User created successfully.");
       setSnackbarSeverity("success");
       setSnackbarOpen(true);
-
       setBankId("");
       setOwner("");
       setRoles([]);
       setAccountType("");
       setStatus("");
+      setAppName("");
     } catch (error) {
       setSnackbarMessage("Failed to create user. Please try again.");
       setSnackbarSeverity("error");
@@ -116,6 +134,7 @@ export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserP
               InputLabelProps={{ sx: { color: "#CBCBCB" } }}
             />
           </Grid>
+
           <Grid item xs={12} md={6}>
             <TextField
               fullWidth
@@ -129,7 +148,23 @@ export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserP
             />
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={6}>
+            <Select
+              fullWidth
+              displayEmpty
+              size="small"
+              value={appName}
+              onChange={(e: SelectChangeEvent) => setAppName(e.target.value)}
+              sx={{ backgroundColor: "#1E252D", color: appName ? "white" : "#CBCBCB", borderRadius: 1 }}
+              renderValue={(selected) => selected || "Select Application"}
+            >
+              {appOptions.map((a) => (
+                <MenuItem key={a} value={a}>{a}</MenuItem>
+              ))}
+            </Select>
+          </Grid>
+
+          <Grid item xs={12} md={6}>
             <FormControl fullWidth size="small">
               <InputLabel sx={{ color: "#CBCBCB" }}>Role(s)</InputLabel>
               <Select
@@ -150,14 +185,14 @@ export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserP
                 )}
                 sx={{ backgroundColor: "#1E252D", color: "white", borderRadius: 1 }}
               >
-                {dummyRoles.map((r) => (
+                {availableRoles.map((r) => (
                   <MenuItem key={r} value={r}>{r}</MenuItem>
                 ))}
               </Select>
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={6}>
             <Select
               fullWidth
               displayEmpty
@@ -167,13 +202,13 @@ export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserP
               sx={{ backgroundColor: "#1E252D", color: accountType ? "white" : "#CBCBCB", borderRadius: 1 }}
               renderValue={(selected) => selected || "Account Type"}
             >
-              {dummyAccountTypes.map((t) => (
+              {accountTypes.map((t) => (
                 <MenuItem key={t} value={t}>{t}</MenuItem>
               ))}
             </Select>
           </Grid>
 
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={6}>
             <Select
               fullWidth
               displayEmpty
@@ -183,7 +218,7 @@ export default function CreateEntitlementUser({ onBack }: CreateEntitlementUserP
               sx={{ backgroundColor: "#1E252D", color: status ? "white" : "#CBCBCB", borderRadius: 1 }}
               renderValue={(selected) => selected || "Status"}
             >
-              {dummyStatus.map((s) => (
+              {statusOptions.map((s) => (
                 <MenuItem key={s} value={s}>{s}</MenuItem>
               ))}
             </Select>
