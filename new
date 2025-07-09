@@ -103,6 +103,32 @@ export default function EntitlementUserView({
     }
   };
 
+  const handleSearch = async () => {
+    setError("");
+    if (!searchTerm) {
+      activeTab === "1" ? loadAllAccounts() : loadAllEntitlements();
+      return;
+    }
+    try {
+      setLoading(true);
+      if (activeTab === "1") {
+        const { data } = await axios.get(
+          `http://mc.shashwat.com:69696/restService/one/account/${searchTerm}`
+        );
+        setAccounts(data ? [data] : []);
+      } else {
+        const { data } = await axios.get(
+          `http://mc.shashwat.com:69696/restService/one/entitlement/${searchTerm}`
+        );
+        setEntitlements(data ? [data] : []);
+      }
+    } catch {
+      setError("No results found");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   React.useEffect(() => {
     loadAppList();
   }, []);
@@ -201,6 +227,51 @@ export default function EntitlementUserView({
           )}
         />
       </Box>
+
+      <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
+        <Grid item xs={12} sm={6} md={4} lg={3}>
+          <TextField
+            size="small"
+            fullWidth
+            placeholder={activeTab === "1" ? "Search by owner/name" : "Search entitlement name"}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: "#CBCBCB" }} />
+                </InputAdornment>
+              ),
+              sx: { backgroundColor: "#1E252D", color: "white", borderRadius: 1 },
+            }}
+          />
+        </Grid>
+        <Grid item xs={6} sm={3} md={2} lg={1.5}>
+          <Button
+            variant="outlined"
+            size="small"
+            fullWidth
+            onClick={handleSearch}
+            sx={{ color: "white", borderColor: "white", height: 36 }}
+          >
+            Search
+          </Button>
+        </Grid>
+        <Grid item xs={6} sm={3} md={6.5} lg={7.5} textAlign="right">
+          <Button
+            variant="contained"
+            startIcon={<AddCircleIcon />}
+            onClick={() =>
+              onNavigate?.(
+                activeTab === "1" ? "create-account" : "create-entitlement-user"
+              )
+            }
+            sx={{ height: 36, fontWeight: 600, fontSize: 12 }}
+          >
+            {activeTab === "1" ? "Create Account" : "Create Entitlement"}
+          </Button>
+        </Grid>
+      </Grid>
 
       <Tabs
         activeKey={activeTab}
