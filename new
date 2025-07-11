@@ -1,252 +1,219 @@
-// src/components/EntitlementUserView/EditEntitlementUser.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
   Box,
   Button,
-  Grid,
   TextField,
   Typography,
-  IconButton,
+  FormControl,
+  InputLabel,
   Select,
   MenuItem,
-  InputLabel,
-  FormControl,
+  Checkbox,
+  ListItemText,
   OutlinedInput,
-  Chip,
-  Snackbar,
-  Alert
-} from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import axios from "axios";
-import styles from "./CreateEntitlementUser.module.css";
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  CircularProgress,
+} from '@mui/material';
+import { DatePicker } from '@mui/lab';
+import FileSaver from 'file-saver';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
+import styles from './ReportsPage.module.css';
 
-interface EditEntitlementUserProps {
-  accountId: string;
-  selectedApp: string;
-  onBack: () => void;
-}
+const FIELD_OPTIONS = [
+  'appUID',
+  'itamID',
+  'itamName',
+  'appName',
+  'appOwner',
+  'createdDate',
+  'lastUpdated',
+];
+const FORMAT_OPTIONS = ['csv', 'excel', 'pdf', 'json'];
 
-const dummyRoles = ["Maker", "Checker", "Viewer", "Admin"];
-
-export default function EditEntitlementUser({ accountId, selectedApp, onBack }: EditEntitlementUserProps) {
-  const [bankId, setBankId] = useState("");
-  const [owner, setOwner] = useState("");
-  const [roles, setRoles] = useState<string[]>([]);
-  const [originalRoles, setOriginalRoles] = useState<string[]>([]);
-  const [accountType, setAccountType] = useState("");
-  const [status, setStatus] = useState("");
+export default function ReportsPage() {
+  const [apps, setApps] = useState([]);
+  const [selectedApp, setSelectedApp] = useState('all');
+  const [fields, setFields] = useState(FIELD_OPTIONS);
+  const [format, setFormat] = useState('csv');
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
+  const [bankId, setBankId] = useState('');
+  const [previewData, setPreviewData] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState("");
-  const [snackbarSeverity, setSnackbarSeverity] = useState<"success" | "error" | "info">("success");
-
   useEffect(() => {
-    const fetchAccount = async () => {
-      try {
-        const { data } = await axios.get(
-          `http://mc.shashwat.com:69696/restService/one/account/${accountId}`,
-          {
-            headers: { applicationName: selectedApp },
-          }
-        );
+    axios
+      .get('https://uklvauems02a.uk.standardchartered.com:32442/fmces/v1/application/all')
+      .then(({ data }) => setApps(data))
+      .catch(console.error);
+  }, []);
 
-        setBankId(data.bankId || "");
-        setOwner(data.accountOwner || "");
-        const roleList = (data.accessRoles || []).map((r: any) => r.roleName);
-        setRoles(roleList);
-        setOriginalRoles(roleList);
-        setAccountType(data.accountType || "");
-        setStatus(data.accountStatus || "");
-      } catch (err) {
-        setSnackbarMessage("Failed to fetch account details.");
-        setSnackbarSeverity("error");
-        setSnackbarOpen(true);
-      }
-    };
+  const fetchData = async () => {
+    // you can modify endpoint or logic to fetch filtered data
+    const response = await axios.post('/api/reports/preview', {
+      application: selectedApp,
+      fields,
+      fromDate,
+      toDate,
+      bankId,
+    });
+    return response.data;
+  };
 
-    fetchAccount();
-  }, [accountId, selectedApp]);
-
-  const handleSave = async () => {
-    if (roles.length === 0) {
-      setSnackbarMessage("At least one role must be selected.");
-      setSnackbarSeverity("error");
-      setSnackbarOpen(true);
-      return;
-    }
-
-    const added = roles.filter((r) => !originalRoles.includes(r));
-    const removed = originalRoles.filter((r) => !roles.includes(r));
-
-    if (added.length === 0 && removed.length === 0) {
-      setSnackbarMessage("No changes detected.");
-      setSnackbarSeverity("info");
-      setSnackbarOpen(true);
-      return;
-    }
-
+  const handlePreview = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const calls: Promise<any>[] = [];
+      const data = await fetchData();
+      setPreviewData(data);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      if (added.length > 0) {
-        calls.push(
-          axios.post(
-            `/api/accounts/${accountId}/roles/add`,
-            { roles: added },
-            { headers: { applicationName: selectedApp } }
-          )
-        );
+  const handleDownload = async () => {
+    setLoading(true);
+    try {
+      const data = previewData.length ? previewData : await fetchData();
+      if (!data || !data.length) return;
+
+      // prepare rows and columns
+      const rows = data.map((item) => fields.map((f) => item[f]));
+      const header = fields;
+
+      switch (format) {
+        case 'csv': {
+          const csvContent = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          FileSaver.saveAs(blob, 'report.csv');
+          break;
+        }
+        case 'excel': {
+          const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Report');
+          const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          const blob = new Blob([wbout], { type: 'application/octet-stream' });
+          FileSaver.saveAs(blob, 'report.xlsx');
+          break;
+        }
+        case 'json': {
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          FileSaver.saveAs(blob, 'report.json');
+          break;
+        }
+        case 'pdf': {
+          const doc = new jsPDF();
+          doc.autoTable({ head: [header], body: rows });
+          doc.save('report.pdf');
+          break;
+        }
+        default:
+          break;
       }
-
-      if (removed.length > 0) {
-        calls.push(
-          axios.post(
-            `/api/accounts/${accountId}/roles/remove`,
-            { roles: removed },
-            { headers: { applicationName: selectedApp } }
-          )
-        );
-      }
-
-      await Promise.all(calls);
-
-      setSnackbarMessage("Roles updated successfully.");
-      setSnackbarSeverity("success");
-      setSnackbarOpen(true);
-      setOriginalRoles(roles);
-    } catch (error) {
-      console.error("Error updating roles", error);
-      setSnackbarMessage("Failed to update roles.");
-      setSnackbarSeverity("error");
-      setSnackbarOpen(true);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Box className={styles.container}>
-      <Box className={styles.header}>
-        <IconButton onClick={onBack} sx={{ color: "white" }}>
-          <ArrowBackIcon />
-        </IconButton>
-        <Typography variant="h6" sx={{ color: "white", ml: 1 }}>
-          Edit Account #{accountId}
-        </Typography>
+    <Box className={styles.container} p={3}>
+      <Typography variant="h4" gutterBottom>
+        Reports
+      </Typography>
+
+      <FormControl fullWidth margin="normal">
+        <InputLabel>Application</InputLabel>
+        <Select
+          value={selectedApp}
+          label="Application"
+          onChange={(e) => setSelectedApp(e.target.value)}
+        >
+          <MenuItem value="all">All Applications</MenuItem>
+          {apps.map((app) => (
+            <MenuItem key={app.appUID} value={app.appName}>
+              {app.appName}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      <FormControl fullWidth margin="normal">
+        <InputLabel>Fields</nputLabel>
+        <Select
+          multiple
+          value={fields}
+          onChange={(e) => setFields(e.target.value)}
+          input={<OutlinedInput label="Fields" />}
+          renderValue={(selected) => selected.join(', ')}
+        >
+          {FIELD_OPTIONS.map((name) => (
+            <MenuItem key={name} value={name}>
+              <Checkbox checked={fields.includes(name)} />
+              <ListItemText primary={name} />
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      <FormControl component="fieldset" margin="normal">
+        <Typography component="legend">Format</Typography>
+        <RadioGroup row value={format} onChange={(e) => setFormat(e.target.value)}>
+          {FORMAT_OPTIONS.map((opt) => (
+            <FormControlLabel
+              key={opt}
+              value={opt}
+              control={<Radio />}
+              label={opt.toUpperCase()}
+            />
+          ))}
+        </RadioGroup>
+      </FormControl>
+
+      <Box display="flex" gap={2} mt={2}>
+        <DatePicker
+          label="From"
+          value={fromDate}
+          onChange={setFromDate}
+          renderInput={(params) => <TextField {...params} />}
+        />
+        <DatePicker
+          label="To"
+          value={toDate}
+          onChange={setToDate}
+          renderInput={(params) => <TextField {...params} />}
+        />
       </Box>
 
-      <Box className={styles.formCard}>
-        <Typography className={styles.sectionTitle}>Account Details</Typography>
-        <Grid container spacing={2} sx={{ mt: 1 }}>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Bank ID"
-              size="small"
-              value={bankId}
-              disabled
-              InputProps={{ sx: { backgroundColor: "#2F3A45", color: "white" } }}
-              InputLabelProps={{ sx: { color: "#CBCBCB" } }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Account Owner"
-              size="small"
-              value={owner}
-              disabled
-              InputProps={{ sx: { backgroundColor: "#2F3A45", color: "white" } }}
-              InputLabelProps={{ sx: { color: "#CBCBCB" } }}
-            />
-          </Grid>
+      <TextField
+        fullWidth
+        margin="normal"
+        label="Bank ID"
+        value={bankId}
+        onChange={(e) => setBankId(e.target.value)}
+      />
 
-          <Grid item xs={12} sm={6}>
-            <FormControl fullWidth size="small">
-              <InputLabel sx={{ color: "#CBCBCB" }}>Role(s)</InputLabel>
-              <Select
-                multiple
-                value={roles}
-                onChange={(e) => setRoles(e.target.value as string[])}
+      <Box mt={3} display="flex" gap={2}>
+        <Button variant="outlined" onClick={handlePreview} disabled={loading}>
+          {loading ? <CircularProgress size={24} /> : 'Preview'}
+        </Button>
+        <Button variant="contained" onClick={handleDownload} disabled={loading}>
+          {loading ? <CircularProgress size={24} /> : 'Download'}
+        </Button>
+      </Box>
 
-                input={<OutlinedInput label="Role(s)" />}
-                renderValue={(selected) => (
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                    {selected.map((value) => (
-                      <Chip
-                        key={value}
-                        label={value}
-                        sx={{ backgroundColor: "#007BFF", color: "white" }}
-                      />
-                    ))}
-                  </Box>
-                )}
-                sx={{
-                  backgroundColor: "#1E252D",
-                  color: "white",
-                  borderRadius: 1,
-                }}
-              >
-                {dummyRoles.map((r) => (
-                  <MenuItem key={r} value={r}>
-                    {r}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Account Type"
-              size="small"
-              value={accountType}
-              disabled
-              InputProps={{ sx: { backgroundColor: "#2F3A45", color: "white" } }}
-              InputLabelProps={{ sx: { color: "#CBCBCB" } }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              fullWidth
-              label="Status"
-              size="small"
-              value={status}
-              disabled
-              InputProps={{ sx: { backgroundColor: "#2F3A45", color: "white" } }}
-              InputLabelProps={{ sx: { color: "#CBCBCB" } }}
-            />
-          </Grid>
-        </Grid>
-
-        <Box sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "flex-end" }}>
-          <Button variant="outlined" color="inherit" onClick={onBack} sx={{ textTransform: "none" }}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={loading}
-            sx={{ textTransform: "none" }}
-          >
-            {loading ? "Saving..." : "Save"}
-          </Button>
+      {previewData.length > 0 && (
+        <Box mt={4}>
+          <Typography variant="h6">Preview</Typography>
+          <pre className={styles.previewBox}>
+            {JSON.stringify(previewData, null, 2)}
+          </pre>
         </Box>
-      </Box>
-
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3000}
-        onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert severity={snackbarSeverity} onClose={() => setSnackbarOpen(false)} sx={{ width: "100%" }}>
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
+      )}
     </Box>
   );
 }
