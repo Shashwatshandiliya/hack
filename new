@@ -1,219 +1,468 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import {
-  Box,
-  Button,
-  TextField,
-  Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Checkbox,
-  ListItemText,
-  OutlinedInput,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  CircularProgress,
-} from '@mui/material';
-import { DatePicker } from '@mui/lab';
-import FileSaver from 'file-saver';
-import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
-import styles from './ReportsPage.module.css';
+import * as React from "react";
+import Grid from "@mui/material/Grid";
+import IconButton from "@mui/material/IconButton";
+import Button from "@mui/material/Button";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import TextField from "@mui/material/TextField";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import InputAdornment from "@mui/material/InputAdornment";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import SearchIcon from "@mui/icons-material/Search";
+import styles from "./ReportsView.module.css";
+import axios from "axios";
+import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import "jspdf-autotable";
 
-const FIELD_OPTIONS = [
-  'appUID',
-  'itamID',
-  'itamName',
-  'appName',
-  'appOwner',
-  'createdDate',
-  'lastUpdated',
-];
-const FORMAT_OPTIONS = ['csv', 'excel', 'pdf', 'json'];
+interface Application {
+  appUID: number;
+  appName: string;
+  appDesc: string;
+  appOwner: string;
+  createdDate: string;
+  lastUpdated: string;
+}
 
-export default function ReportsPage() {
-  const [apps, setApps] = useState([]);
-  const [selectedApp, setSelectedApp] = useState('all');
-  const [fields, setFields] = useState(FIELD_OPTIONS);
-  const [format, setFormat] = useState('csv');
-  const [fromDate, setFromDate] = useState(null);
-  const [toDate, setToDate] = useState(null);
-  const [bankId, setBankId] = useState('');
-  const [previewData, setPreviewData] = useState([]);
-  const [loading, setLoading] = useState(false);
+interface ReportField {
+  id: string;
+  label: string;
+  selected: boolean;
+}
 
-  useEffect(() => {
-    axios
-      .get('https://uklvauems02a.uk.standardchartered.com:32442/fmces/v1/application/all')
-      .then(({ data }) => setApps(data))
-      .catch(console.error);
+const ReportsView: React.FC = () => {
+  const [applications, setApplications] = React.useState<Application[]>([]);
+  const [selectedApplication, setSelectedApplication] = React.useState<string>("all");
+  const [reportFormat, setReportFormat] = React.useState<"csv" | "excel" | "pdf" | "json">("csv");
+  const [startDate, setStartDate] = React.useState<string>("");
+  const [endDate, setEndDate] = React.useState<string>("");
+  const [bankId, setBankId] = React.useState<string>("");
+  const [previewData, setPreviewData] = React.useState<any[]>([]);
+  const [isLoading, setIsLoading] = React.useState<boolean>(false);
+  const [reportFields, setReportFields] = React.useState<ReportField[]>([
+    { id: "appName", label: "Application Name", selected: true },
+    { id: "appDesc", label: "Description", selected: true },
+    { id: "appOwner", label: "Owner", selected: true },
+    { id: "createdDate", label: "Created Date", selected: true },
+    { id: "lastUpdated", label: "Last Updated", selected: true },
+    { id: "contactDL", label: "Contact DL", selected: false },
+    { id: "isActive", label: "Active Status", selected: false },
+    { id: "totalFeatures", label: "Total Features", selected: false },
+    { id: "totalActions", label: "Total Actions", selected: false },
+  ]);
+
+  React.useEffect(() => {
+    const fetchApplications = async () => {
+      try {
+        setIsLoading(true);
+        const resp = await axios.get<Application[]>(
+          "https://uklvauems02a.uk.standardchartered.com:32442/fmces/v1/application/all"
+        );
+        setApplications(resp.data);
+      } catch (error) {
+        console.error("Error fetching applications", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchApplications();
   }, []);
 
-  const fetchData = async () => {
-    // you can modify endpoint or logic to fetch filtered data
-    const response = await axios.post('/api/reports/preview', {
-      application: selectedApp,
-      fields,
-      fromDate,
-      toDate,
-      bankId,
-    });
-    return response.data;
+  const handleFieldToggle = (id: string) => {
+    setReportFields(fields => 
+      fields.map(field => 
+        field.id === id ? { ...field, selected: !field.selected } : field
+      )
+    );
   };
 
   const handlePreview = async () => {
-    setLoading(true);
     try {
-      const data = await fetchData();
-      setPreviewData(data);
+      setIsLoading(true);
+      
+      // Filter applications based on selection
+      let filteredApps = [...applications];
+      
+      // Apply application filter
+      if (selectedApplication !== "all") {
+        filteredApps = filteredApps.filter(app => 
+          app.appName === selectedApplication
+        );
+      }
+      
+      // Apply date range filter
+      if (startDate && endDate) {
+        filteredApps = filteredApps.filter(app => {
+          const created = new Date(app.createdDate);
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          return created >= start && created <= end;
+        });
+      }
+      
+      // Apply bank ID filter
+      if (bankId) {
+        // This would require an API call to get accounts by bank ID
+        // For demo purposes, we'll just filter by appOwner
+        filteredApps = filteredApps.filter(app => 
+          app.appOwner.toLowerCase().includes(bankId.toLowerCase())
+        );
+      }
+      
+      // Select only the chosen fields
+      const selectedFields = reportFields.filter(f => f.selected).map(f => f.id);
+      const preview = filteredApps.map(app => {
+        const result: any = {};
+        selectedFields.forEach(field => {
+          result[field] = (app as any)[field] || "N/A";
+        });
+        return result;
+      });
+      
+      setPreviewData(preview);
+    } catch (error) {
+      console.error("Error generating preview", error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleDownload = async () => {
-    setLoading(true);
-    try {
-      const data = previewData.length ? previewData : await fetchData();
-      if (!data || !data.length) return;
-
-      // prepare rows and columns
-      const rows = data.map((item) => fields.map((f) => item[f]));
-      const header = fields;
-
-      switch (format) {
-        case 'csv': {
-          const csvContent = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
-          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-          FileSaver.saveAs(blob, 'report.csv');
-          break;
-        }
-        case 'excel': {
-          const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
-          const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, 'Report');
-          const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-          const blob = new Blob([wbout], { type: 'application/octet-stream' });
-          FileSaver.saveAs(blob, 'report.xlsx');
-          break;
-        }
-        case 'json': {
-          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-          FileSaver.saveAs(blob, 'report.json');
-          break;
-        }
-        case 'pdf': {
-          const doc = new jsPDF();
-          doc.autoTable({ head: [header], body: rows });
-          doc.save('report.pdf');
-          break;
-        }
-        default:
-          break;
-      }
-    } finally {
-      setLoading(false);
+  const handleDownload = () => {
+    if (previewData.length === 0) {
+      alert("No data to download. Please generate a preview first.");
+      return;
     }
+    
+    const selectedFields = reportFields.filter(f => f.selected).map(f => f.id);
+    const headers = reportFields
+      .filter(f => f.selected)
+      .map(f => f.label);
+    
+    switch (reportFormat) {
+      case "csv":
+        downloadCSV(previewData, headers, selectedFields);
+        break;
+      case "excel":
+        downloadExcel(previewData, headers, selectedFields);
+        break;
+      case "pdf":
+        downloadPDF(previewData, headers, selectedFields);
+        break;
+      case "json":
+        downloadJSON(previewData);
+        break;
+    }
+  };
+
+  const downloadCSV = (data: any[], headers: string[], fields: string[]) => {
+    const csvRows = [];
+    
+    // Add headers
+    csvRows.push(headers.join(","));
+    
+    // Add data rows
+    data.forEach(item => {
+      const row = fields.map(field => {
+        const value = item[field];
+        return typeof value === "string" ? `"${value.replace(/"/g, '""')}"` : value;
+      });
+      csvRows.push(row.join(","));
+    });
+    
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    saveAs(blob, `application_report_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  const downloadExcel = (data: any[], headers: string[], fields: string[]) => {
+    const worksheet = XLSX.utils.json_to_sheet(
+      data.map(item => {
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = item[fields[index]];
+        });
+        return row;
+      })
+    );
+    
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Applications");
+    XLSX.writeFile(workbook, `application_report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const downloadPDF = (data: any[], headers: string[], fields: string[]) => {
+    const doc = new jsPDF();
+    const title = "Application Report";
+    
+    // Add title
+    doc.setFontSize(18);
+    doc.text(title, 14, 15);
+    
+    // Add filters info
+    doc.setFontSize(10);
+    let filterText = `Generated on: ${new Date().toLocaleDateString()}`;
+    
+    if (selectedApplication !== "all") {
+      filterText += ` | Application: ${selectedApplication}`;
+    }
+    
+    if (startDate && endDate) {
+      filterText += ` | Date Range: ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`;
+    }
+    
+    if (bankId) {
+      filterText += ` | Bank ID: ${bankId}`;
+    }
+    
+    doc.text(filterText, 14, 25);
+    
+    // Prepare table data
+    const tableData = data.map(item => 
+      fields.map(field => item[field])
+    );
+    
+    // Add table
+    (doc as any).autoTable({
+      head: [headers],
+      body: tableData,
+      startY: 30,
+      theme: "grid",
+      styles: { fontSize: 9, cellPadding: 2 },
+      headStyles: { fillColor: [41, 128, 185] }
+    });
+    
+    doc.save(`application_report_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
+  const downloadJSON = (data: any[]) => {
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    saveAs(blob, `application_report_${new Date().toISOString().slice(0, 10)}.json`);
   };
 
   return (
-    <Box className={styles.container} p={3}>
-      <Typography variant="h4" gutterBottom>
-        Reports
-      </Typography>
+    <div className={styles.container}>
+      {/* Header */}
+      <div className={styles.header}>
+        <Grid container alignItems="center" justifyContent="space-between">
+          <Typography sx={{ fontWeight: 500, fontSize: 20 }}>Reports</Typography>
+        </Grid>
+      </div>
 
-      <FormControl fullWidth margin="normal">
-        <InputLabel>Application</InputLabel>
-        <Select
-          value={selectedApp}
-          label="Application"
-          onChange={(e) => setSelectedApp(e.target.value)}
-        >
-          <MenuItem value="all">All Applications</MenuItem>
-          {apps.map((app) => (
-            <MenuItem key={app.appUID} value={app.appName}>
-              {app.appName}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-
-      <FormControl fullWidth margin="normal">
-        <InputLabel>Fields</nputLabel>
-        <Select
-          multiple
-          value={fields}
-          onChange={(e) => setFields(e.target.value)}
-          input={<OutlinedInput label="Fields" />}
-          renderValue={(selected) => selected.join(', ')}
-        >
-          {FIELD_OPTIONS.map((name) => (
-            <MenuItem key={name} value={name}>
-              <Checkbox checked={fields.includes(name)} />
-              <ListItemText primary={name} />
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-
-      <FormControl component="fieldset" margin="normal">
-        <Typography component="legend">Format</Typography>
-        <RadioGroup row value={format} onChange={(e) => setFormat(e.target.value)}>
-          {FORMAT_OPTIONS.map((opt) => (
-            <FormControlLabel
-              key={opt}
-              value={opt}
-              control={<Radio />}
-              label={opt.toUpperCase()}
-            />
-          ))}
-        </RadioGroup>
-      </FormControl>
-
-      <Box display="flex" gap={2} mt={2}>
-        <DatePicker
-          label="From"
-          value={fromDate}
-          onChange={setFromDate}
-          renderInput={(params) => <TextField {...params} />}
-        />
-        <DatePicker
-          label="To"
-          value={toDate}
-          onChange={setToDate}
-          renderInput={(params) => <TextField {...params} />}
-        />
-      </Box>
-
-      <TextField
-        fullWidth
-        margin="normal"
-        label="Bank ID"
-        value={bankId}
-        onChange={(e) => setBankId(e.target.value)}
-      />
-
-      <Box mt={3} display="flex" gap={2}>
-        <Button variant="outlined" onClick={handlePreview} disabled={loading}>
-          {loading ? <CircularProgress size={24} /> : 'Preview'}
-        </Button>
-        <Button variant="contained" onClick={handleDownload} disabled={loading}>
-          {loading ? <CircularProgress size={24} /> : 'Download'}
-        </Button>
-      </Box>
-
-      {previewData.length > 0 && (
-        <Box mt={4}>
-          <Typography variant="h6">Preview</Typography>
-          <pre className={styles.previewBox}>
-            {JSON.stringify(previewData, null, 2)}
-          </pre>
+      {/* Report Configuration */}
+      <div className={styles.configSection}>
+        <Box sx={{ border: '1px solid #444', p: 2, borderRadius: 1, backgroundColor: '#1A2028' }}>
+          <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>Generate Report</Typography>
+          
+          <Grid container spacing={3}>
+            {/* Application Selection */}
+            <Grid item xs={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel sx={{ color: '#FFF' }}>Application</InputLabel>
+                <Select
+                  value={selectedApplication}
+                  onChange={(e) => setSelectedApplication(e.target.value as string)}
+                  sx={{ 
+                    backgroundColor: '#1E252D', 
+                    color: 'white',
+                    '& .MuiSelect-icon': { color: 'white' }
+                  }}
+                >
+                  <MenuItem value="all">All Applications</MenuItem>
+                  {applications.map((app) => (
+                    <MenuItem key={app.appUID} value={app.appName}>
+                      {app.appName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            {/* Report Format */}
+            <Grid item xs={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel sx={{ color: '#FFF' }}>Format</InputLabel>
+                <Select
+                  value={reportFormat}
+                  onChange={(e) => setReportFormat(e.target.value as any)}
+                  sx={{ 
+                    backgroundColor: '#1E252D', 
+                    color: 'white',
+                    '& .MuiSelect-icon': { color: 'white' }
+                  }}
+                >
+                  <MenuItem value="csv">CSV</MenuItem>
+                  <MenuItem value="excel">Excel</MenuItem>
+                  <MenuItem value="pdf">PDF</MenuItem>
+                  <MenuItem value="json">JSON</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            {/* Date Range */}
+            <Grid item xs={4}>
+              <TextField
+                label="Date Range"
+                size="small"
+                fullWidth
+                value={`${startDate} → ${endDate}`}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={() => {}}>
+                        <CalendarTodayIcon sx={{ color: '#FFF' }} />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                  sx: { color: 'white' }
+                }}
+                sx={{ backgroundColor: '#1E252D', borderRadius: 1 }}
+              />
+            </Grid>
+            
+            {/* Bank ID Search */}
+            <Grid item xs={12}>
+              <TextField
+                label="Search by Bank ID"
+                size="small"
+                fullWidth
+                value={bankId}
+                onChange={(e) => setBankId(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: '#FFF' }} />
+                    </InputAdornment>
+                  ),
+                  sx: { color: 'white' }
+                }}
+                sx={{ backgroundColor: '#1E252D', borderRadius: 1 }}
+              />
+            </Grid>
+            
+            {/* Custom Fields */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" sx={{ color: 'white', mb: 1 }}>
+                Select Fields to Include
+              </Typography>
+              <Box sx={{ 
+                backgroundColor: '#1E252D', 
+                p: 2, 
+                borderRadius: 1,
+                maxHeight: 200,
+                overflowY: 'auto'
+              }}>
+                <Grid container spacing={2}>
+                  {reportFields.map((field) => (
+                    <Grid item xs={4} key={field.id}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={field.selected}
+                            onChange={() => handleFieldToggle(field.id)}
+                            sx={{ color: '#2BCBC1' }}
+                          />
+                        }
+                        label={
+                          <Typography sx={{ color: 'white', fontSize: 14 }}>
+                            {field.label}
+                          </Typography>
+                        }
+                      />
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            </Grid>
+            
+            {/* Action Buttons */}
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+                <Button 
+                  variant="outlined" 
+                  sx={{ 
+                    color: 'white', 
+                    borderColor: 'white',
+                    '&:hover': { borderColor: '#2BCBC1', color: '#2BCBC1' }
+                  }}
+                  onClick={handlePreview}
+                  disabled={isLoading}
+                >
+                  Preview
+                </Button>
+                <Button 
+                  variant="contained" 
+                  sx={{ backgroundColor: '#2BCBC1', '&:hover': { backgroundColor: '#1da59a' } }}
+                  onClick={handleDownload}
+                  disabled={isLoading || previewData.length === 0}
+                >
+                  Download
+                </Button>
+              </Box>
+            </Grid>
+          </Grid>
         </Box>
+      </div>
+
+      {/* Preview Section */}
+      {previewData.length > 0 && (
+        <div className={styles.previewSection}>
+          <Box sx={{ border: '1px solid #444', p: 2, borderRadius: 1, mt: 2, backgroundColor: '#1A2028' }}>
+            <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+              Preview ({previewData.length} records)
+            </Typography>
+            
+            <Box sx={{ 
+              backgroundColor: '#262B36', 
+              p: 2, 
+              borderRadius: 1,
+              maxHeight: 400,
+              overflowY: 'auto'
+            }}>
+              <table className={styles.previewTable}>
+                <thead>
+                  <tr>
+                    {reportFields
+                      .filter(f => f.selected)
+                      .map(field => (
+                        <th key={field.id}>{field.label}</th>
+                      ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewData.slice(0, 10).map((row, index) => (
+                    <tr key={index}>
+                      {reportFields
+                        .filter(f => f.selected)
+                        .map(field => (
+                          <td key={`${index}-${field.id}`}>
+                            {row[field.id] || "N/A"}
+                          </td>
+                        ))}
+                    </tr>
+                  ))}
+                  {previewData.length > 10 && (
+                    <tr>
+                      <td colSpan={reportFields.filter(f => f.selected).length} style={{ textAlign: 'center' }}>
+                        ... and {previewData.length - 10} more records
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </Box>
+          </Box>
+        </div>
       )}
-    </Box>
+    </div>
   );
-}
+};
+
+export default ReportsView;
