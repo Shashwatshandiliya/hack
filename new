@@ -18,15 +18,31 @@ import styles from "./ReportsView.module.css";
 import axios from "axios";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
+import CircularProgress from "@mui/material/CircularProgress";
 
 interface Application {
   appUID: number;
   appName: string;
   appDesc: string;
   appOwner: string;
-  createdDate: string;
+}
+
+interface Account {
+  accountName: string;
+  accountOwner: string;
+  accountType: string;
+  accountStatus: string;
+  accountDescription: string;
+  isPrivileged: string;
+  lastLogin: string;
+  accessRoles: {
+    roleName: string;
+    entitlementName: string;
+    entitlementDescription: string;
+    entitlementOwner: string;
+    isPrivileged: string;
+  }[];
+  applicationName: string;
   lastUpdated: string;
 }
 
@@ -38,25 +54,30 @@ interface ReportField {
 
 const ReportsView: React.FC = () => {
   const [applications, setApplications] = React.useState<Application[]>([]);
-  const [selectedApplication, setSelectedApplication] = React.useState<string>("all");
-  const [reportFormat, setReportFormat] = React.useState<"csv" | "excel" | "pdf" | "json">("csv");
+  const [selectedApplication, setSelectedApplication] = React.useState<string>("");
+  const [reportFormat, setReportFormat] = React.useState<"csv" | "excel" | "json">("csv");
   const [startDate, setStartDate] = React.useState<string>("");
   const [endDate, setEndDate] = React.useState<string>("");
   const [bankId, setBankId] = React.useState<string>("");
   const [previewData, setPreviewData] = React.useState<any[]>([]);
   const [isLoading, setIsLoading] = React.useState<boolean>(false);
+  const [accounts, setAccounts] = React.useState<Account[]>([]);
+  const [isFetchingAccounts, setIsFetchingAccounts] = React.useState<boolean>(false);
+
   const [reportFields, setReportFields] = React.useState<ReportField[]>([
-    { id: "appName", label: "Application Name", selected: true },
-    { id: "appDesc", label: "Description", selected: true },
-    { id: "appOwner", label: "Owner", selected: true },
-    { id: "createdDate", label: "Created Date", selected: true },
-    { id: "lastUpdated", label: "Last Updated", selected: true },
-    { id: "contactDL", label: "Contact DL", selected: false },
-    { id: "isActive", label: "Active Status", selected: false },
-    { id: "totalFeatures", label: "Total Features", selected: false },
-    { id: "totalActions", label: "Total Actions", selected: false },
+    { id: "accountName", label: "Account Name", selected: true },
+    { id: "accountOwner", label: "Account Owner", selected: true },
+    { id: "accountType", label: "Account Type", selected: true },
+    { id: "accountStatus", label: "Account Status", selected: true },
+    { id: "isPrivileged", label: "Is Privileged", selected: true },
+    { id: "lastLogin", label: "Last Login", selected: true },
+    { id: "applicationName", label: "Application", selected: true },
+    { id: "roles", label: "Roles", selected: false },
+    { id: "entitlements", label: "Entitlements", selected: false },
+    { id: "lastUpdated", label: "Last Updated", selected: false },
   ]);
 
+  // Fetch applications
   React.useEffect(() => {
     const fetchApplications = async () => {
       try {
@@ -65,6 +86,9 @@ const ReportsView: React.FC = () => {
           "https://uklvauems02a.uk.standardchartered.com:32442/fmces/v1/application/all"
         );
         setApplications(resp.data);
+        if (resp.data.length > 0) {
+          setSelectedApplication(resp.data[0].appName);
+        }
       } catch (error) {
         console.error("Error fetching applications", error);
       } finally {
@@ -75,6 +99,31 @@ const ReportsView: React.FC = () => {
     fetchApplications();
   }, []);
 
+  // Fetch accounts when application changes
+  React.useEffect(() => {
+    if (selectedApplication) {
+      fetchAccountsForApplication(selectedApplication);
+    }
+  }, [selectedApplication]);
+
+  const fetchAccountsForApplication = async (appName: string) => {
+    try {
+      setIsFetchingAccounts(true);
+      const response = await axios.get(
+        "https://uklvauems02a.uk.standardchartered.com:32447/restService/onecert/v1/account",
+        {
+          headers: { applicationName: appName }
+        }
+      );
+      setAccounts(response.data.accounts || []);
+    } catch (error) {
+      console.error("Error fetching accounts", error);
+      setAccounts([]);
+    } finally {
+      setIsFetchingAccounts(false);
+    }
+  };
+
   const handleFieldToggle = (id: string) => {
     setReportFields(fields => 
       fields.map(field => 
@@ -83,55 +132,36 @@ const ReportsView: React.FC = () => {
     );
   };
 
-  const handlePreview = async () => {
-    try {
-      setIsLoading(true);
+  const handlePreview = () => {
+    // Filter accounts based on bank ID
+    let filteredAccounts = [...accounts];
+    
+    if (bankId) {
+      filteredAccounts = filteredAccounts.filter(account => 
+        account.accountOwner.toLowerCase().includes(bankId.toLowerCase()) ||
+        account.accountName.toLowerCase().includes(bankId.toLowerCase())
+      );
+    }
+    
+    // Select only the chosen fields
+    const selectedFields = reportFields.filter(f => f.selected).map(f => f.id);
+    const preview = filteredAccounts.map(account => {
+      const result: any = {};
       
-      // Filter applications based on selection
-      let filteredApps = [...applications];
-      
-      // Apply application filter
-      if (selectedApplication !== "all") {
-        filteredApps = filteredApps.filter(app => 
-          app.appName === selectedApplication
-        );
-      }
-      
-      // Apply date range filter
-      if (startDate && endDate) {
-        filteredApps = filteredApps.filter(app => {
-          const created = new Date(app.createdDate);
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          return created >= start && created <= end;
-        });
-      }
-      
-      // Apply bank ID filter
-      if (bankId) {
-        // This would require an API call to get accounts by bank ID
-        // For demo purposes, we'll just filter by appOwner
-        filteredApps = filteredApps.filter(app => 
-          app.appOwner.toLowerCase().includes(bankId.toLowerCase())
-        );
-      }
-      
-      // Select only the chosen fields
-      const selectedFields = reportFields.filter(f => f.selected).map(f => f.id);
-      const preview = filteredApps.map(app => {
-        const result: any = {};
-        selectedFields.forEach(field => {
-          result[field] = (app as any)[field] || "N/A";
-        });
-        return result;
+      selectedFields.forEach(field => {
+        if (field === "roles") {
+          result[field] = account.accessRoles.map(role => role.roleName).join(", ");
+        } else if (field === "entitlements") {
+          result[field] = account.accessRoles.map(role => role.entitlementName).join(", ");
+        } else {
+          result[field] = (account as any)[field] || "N/A";
+        }
       });
       
-      setPreviewData(preview);
-    } catch (error) {
-      console.error("Error generating preview", error);
-    } finally {
-      setIsLoading(false);
-    }
+      return result;
+    });
+    
+    setPreviewData(preview);
   };
 
   const handleDownload = () => {
@@ -151,9 +181,6 @@ const ReportsView: React.FC = () => {
         break;
       case "excel":
         downloadExcel(previewData, headers, selectedFields);
-        break;
-      case "pdf":
-        downloadPDF(previewData, headers, selectedFields);
         break;
       case "json":
         downloadJSON(previewData);
@@ -178,7 +205,7 @@ const ReportsView: React.FC = () => {
     
     const csvString = csvRows.join("\n");
     const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-    saveAs(blob, `application_report_${new Date().toISOString().slice(0, 10)}.csv`);
+    saveAs(blob, `${selectedApplication}_accounts_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   const downloadExcel = (data: any[], headers: string[], fields: string[]) => {
@@ -193,58 +220,14 @@ const ReportsView: React.FC = () => {
     );
     
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Applications");
-    XLSX.writeFile(workbook, `application_report_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  };
-
-  const downloadPDF = (data: any[], headers: string[], fields: string[]) => {
-    const doc = new jsPDF();
-    const title = "Application Report";
-    
-    // Add title
-    doc.setFontSize(18);
-    doc.text(title, 14, 15);
-    
-    // Add filters info
-    doc.setFontSize(10);
-    let filterText = `Generated on: ${new Date().toLocaleDateString()}`;
-    
-    if (selectedApplication !== "all") {
-      filterText += ` | Application: ${selectedApplication}`;
-    }
-    
-    if (startDate && endDate) {
-      filterText += ` | Date Range: ${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`;
-    }
-    
-    if (bankId) {
-      filterText += ` | Bank ID: ${bankId}`;
-    }
-    
-    doc.text(filterText, 14, 25);
-    
-    // Prepare table data
-    const tableData = data.map(item => 
-      fields.map(field => item[field])
-    );
-    
-    // Add table
-    (doc as any).autoTable({
-      head: [headers],
-      body: tableData,
-      startY: 30,
-      theme: "grid",
-      styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: [41, 128, 185] }
-    });
-    
-    doc.save(`application_report_${new Date().toISOString().slice(0, 10)}.pdf`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Accounts");
+    XLSX.writeFile(workbook, `${selectedApplication}_accounts_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const downloadJSON = (data: any[]) => {
     const jsonString = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
-    saveAs(blob, `application_report_${new Date().toISOString().slice(0, 10)}.json`);
+    saveAs(blob, `${selectedApplication}_accounts_${new Date().toISOString().slice(0, 10)}.json`);
   };
 
   return (
@@ -259,7 +242,7 @@ const ReportsView: React.FC = () => {
       {/* Report Configuration */}
       <div className={styles.configSection}>
         <Box sx={{ border: '1px solid #444', p: 2, borderRadius: 1, backgroundColor: '#1A2028' }}>
-          <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>Generate Report</Typography>
+          <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>Generate Account Report</Typography>
           
           <Grid container spacing={3}>
             {/* Application Selection */}
@@ -275,7 +258,6 @@ const ReportsView: React.FC = () => {
                     '& .MuiSelect-icon': { color: 'white' }
                   }}
                 >
-                  <MenuItem value="all">All Applications</MenuItem>
                   {applications.map((app) => (
                     <MenuItem key={app.appUID} value={app.appName}>
                       {app.appName}
@@ -283,6 +265,14 @@ const ReportsView: React.FC = () => {
                   ))}
                 </Select>
               </FormControl>
+              {isFetchingAccounts && (
+                <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                  <CircularProgress size={20} sx={{ color: '#2BCBC1', mr: 1 }} />
+                  <Typography variant="caption" sx={{ color: '#888' }}>
+                    Loading accounts...
+                  </Typography>
+                </Box>
+              )}
             </Grid>
             
             {/* Report Format */}
@@ -300,37 +290,15 @@ const ReportsView: React.FC = () => {
                 >
                   <MenuItem value="csv">CSV</MenuItem>
                   <MenuItem value="excel">Excel</MenuItem>
-                  <MenuItem value="pdf">PDF</MenuItem>
                   <MenuItem value="json">JSON</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
             
-            {/* Date Range */}
+            {/* Bank ID Search */}
             <Grid item xs={4}>
               <TextField
-                label="Date Range"
-                size="small"
-                fullWidth
-                value={`${startDate} → ${endDate}`}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton onClick={() => {}}>
-                        <CalendarTodayIcon sx={{ color: '#FFF' }} />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                  sx: { color: 'white' }
-                }}
-                sx={{ backgroundColor: '#1E252D', borderRadius: 1 }}
-              />
-            </Grid>
-            
-            {/* Bank ID Search */}
-            <Grid item xs={12}>
-              <TextField
-                label="Search by Bank ID"
+                label="Search by Bank ID or Account"
                 size="small"
                 fullWidth
                 value={bankId}
@@ -393,7 +361,7 @@ const ReportsView: React.FC = () => {
                     '&:hover': { borderColor: '#2BCBC1', color: '#2BCBC1' }
                   }}
                   onClick={handlePreview}
-                  disabled={isLoading}
+                  disabled={isLoading || accounts.length === 0}
                 >
                   Preview
                 </Button>
@@ -416,7 +384,7 @@ const ReportsView: React.FC = () => {
         <div className={styles.previewSection}>
           <Box sx={{ border: '1px solid #444', p: 2, borderRadius: 1, mt: 2, backgroundColor: '#1A2028' }}>
             <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
-              Preview ({previewData.length} records)
+              Preview ({previewData.length} accounts)
             </Typography>
             
             <Box sx={{ 
@@ -451,7 +419,7 @@ const ReportsView: React.FC = () => {
                   {previewData.length > 10 && (
                     <tr>
                       <td colSpan={reportFields.filter(f => f.selected).length} style={{ textAlign: 'center' }}>
-                        ... and {previewData.length - 10} more records
+                        ... and {previewData.length - 10} more accounts
                       </td>
                     </tr>
                   )}
@@ -460,6 +428,15 @@ const ReportsView: React.FC = () => {
             </Box>
           </Box>
         </div>
+      )}
+
+      {/* Account Count */}
+      {accounts.length > 0 && previewData.length === 0 && (
+        <Box sx={{ mt: 2, textAlign: 'center' }}>
+          <Typography sx={{ color: '#888' }}>
+            {accounts.length} accounts loaded for {selectedApplication}. Click "Preview" to generate a report.
+          </Typography>
+        </Box>
       )}
     </div>
   );
